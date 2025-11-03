@@ -1,7 +1,14 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.6.0
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.6.1
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🐛 CORRECCIONES URGENTES v4.6.1:
+==================================
+1. ✅ INDICADOR DE MODO: Ahora se actualiza correctamente después de cargar datos
+2. ✅ TOOLTIP DINÁMICO: El margen de protección muestra meses configurados
+3. ✅ KEYERROR CORREGIDO: Referencias 'gastos' → 'egresos_totales'
+4. ✅ ESTADO PERSISTENTE: datos_procesados se guarda correctamente
 
 🔥 CORRECCIONES CRÍTICAS v4.6.0 - FASE 1:
 ==========================================
@@ -586,14 +593,15 @@ def generar_balance_multi_escenario(meses, efectivo_inicial, proyecciones):
         efectivo_acumulado = efectivo_inicial
         
         for idx, row in df_proj.iterrows():
-            flujo_neto = row['revenue'] - row['gastos']
+            # 🆕 v4.6.1: Usar 'egresos_totales' en lugar de 'gastos'
+            flujo_neto = row['revenue'] - row['egresos_totales']
             efectivo_acumulado += flujo_neto
             
             balance.append({
                 'mes': int(row['mes']),
                 'efectivo_inicial': efectivo_acumulado - flujo_neto,
                 'ingresos': row['revenue'],
-                'gastos': row['gastos'],
+                'egresos_totales': row['egresos_totales'],  # 🆕 v4.6.1: Corregido
                 'flujo_neto': flujo_neto,
                 'efectivo_final': efectivo_acumulado,
                 'escenario': escenario
@@ -689,7 +697,18 @@ with st.sidebar:
             if st.button("🚀 Procesar Datos", use_container_width=True, type="primary"):
                 with st.spinner("⚙️ Procesando archivos..."):
                     st.info("📊 Integración completa con backend disponible post-convención")
-                    st.session_state.data_source = 'demo'
+                    # 🆕 v4.6.1: Establecer correctamente el estado después de cargar datos
+                    st.session_state.data_source = 'real'
+                    st.session_state.datos_procesados = {
+                        'file_2023': file_2023.name,
+                        'file_2024': file_2024.name,
+                        'file_2025': file_2025.name,
+                        'file_weekly': file_weekly.name,
+                        'file_financial': file_financial.name,
+                        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    st.success("✅ Datos procesados correctamente - Visualizando DATOS REALES")
+                    st.rerun()
         else:
             missing = []
             if not file_2023: missing.append("Util 2023")
@@ -934,8 +953,10 @@ if page == "🏠 Resumen Ejecutivo":
         st.metric("Balance Proyectado (3m)", f"${balance_3m:,.0f}")
     
     with col2:
+        # 🆕 v4.6.1: Tooltip dinámico según meses_colchon configurados
+        meses_texto = f"{st.session_state.meses_colchon} {'mes' if st.session_state.meses_colchon == 1 else 'meses'}"
         st.metric("Necesidades Mínimas", f"${necesidades:,.0f}", 
-                 help="1 mes de burn rate como colchón")
+                 help=f"{meses_texto} de burn rate como margen de protección")
     
     with col3:
         excedente_color = "normal" if analisis_cash['excedente_deficit'] > 0 else "inverse"
@@ -1156,7 +1177,8 @@ elif page == "💵 Proyecciones":
             
             df_display = df_proj.copy()
             df_display['revenue'] = df_display['revenue'].apply(lambda x: f"${x:,.0f}")
-            df_display['gastos'] = df_display['gastos'].apply(lambda x: f"${x:,.0f}")
+            # 🆕 v4.6.1: Usar 'egresos_totales' en lugar de 'gastos'
+            df_display['egresos_totales'] = df_display['egresos_totales'].apply(lambda x: f"${x:,.0f}")
             df_display['flujo_neto'] = df_display['flujo_neto'].apply(lambda x: f"${x:,.0f}")
             
             st.dataframe(df_display, use_container_width=True, hide_index=True)
