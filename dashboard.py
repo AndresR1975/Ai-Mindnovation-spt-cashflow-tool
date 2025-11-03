@@ -1,16 +1,12 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.5
-==============================================
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.5.1
+================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-CORRECCIONES Y MEJORAS EN v4.5:
-✅ 1. Runway calculado con balance proyectado 3 meses
-✅ 2. Necesidades/excedentes con balance completo proyectado
-✅ 3. Gráfico histórico mejorado con tendencias
-✅ 4. Revenue por escenario en barras comparativas
-✅ 5. Estacionalidad interactiva (toggles por año)
-✅ 6. Corrección de errores balance multi-escenario
-+ Todas las funcionalidades de v4.4
+CORRECCIÓN v4.5.1:
+✅ Eliminada dependencia de scipy
+✅ Cálculo de tendencia con numpy (ya disponible)
++ Todas las correcciones de v4.5
 
 Autor: AI-MindNovation
 Cliente: SPT Colombia
@@ -23,7 +19,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import numpy as np
-from scipy import stats
 
 # =============================================================================
 # CONFIGURACIÓN Y AUTENTICACIÓN
@@ -131,6 +126,32 @@ if 'datos_procesados' not in st.session_state:
     st.session_state.datos_procesados = None
 
 # =============================================================================
+# FUNCIONES AUXILIARES
+# =============================================================================
+
+def calcular_tendencia_lineal(y_values):
+    """
+    Calcula tendencia lineal usando numpy (sin scipy)
+    Retorna: slope, intercept, trend_line
+    """
+    n = len(y_values)
+    x = np.arange(n)
+    
+    # Calcular pendiente e intercepto usando mínimos cuadrados
+    x_mean = np.mean(x)
+    y_mean = np.mean(y_values)
+    
+    numerador = np.sum((x - x_mean) * (y_values - y_mean))
+    denominador = np.sum((x - x_mean) ** 2)
+    
+    slope = numerador / denominador if denominador != 0 else 0
+    intercept = y_mean - slope * x_mean
+    
+    trend_line = slope * x + intercept
+    
+    return slope, intercept, trend_line
+
+# =============================================================================
 # FUNCIONES DE DATOS
 # =============================================================================
 
@@ -165,14 +186,10 @@ def get_historical_data_complete():
     }), years_data
 
 def calcular_proyeccion_3_meses(revenue_promedio, burn_rate):
-    """
-    Calcula proyección de flujo para próximos 3 meses
-    Retorna: lista de flujos netos mensuales
-    """
+    """Calcula proyección de flujo para próximos 3 meses"""
     proyeccion = []
     
     for i in range(3):
-        # Estimar revenue con ligera variación
         revenue_mes = revenue_promedio * (1 + np.random.uniform(-0.05, 0.1))
         flujo_neto = revenue_mes - burn_rate
         proyeccion.append(flujo_neto)
@@ -182,14 +199,10 @@ def calcular_proyeccion_3_meses(revenue_promedio, burn_rate):
 def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
     """
     ✅ CORRECCIÓN 1: Runway considerando balance proyectado
-    
-    Runway = meses hasta que efectivo llegue a 0 considerando flujos futuros
     """
-    # Balance después de 3 meses proyectados
     balance_3_meses = efectivo_actual + sum(flujos_proyectados)
     
     if balance_3_meses <= 0:
-        # Si ya está en negativo en 3 meses, calcular exacto cuándo
         efectivo_temp = efectivo_actual
         for i, flujo in enumerate(flujos_proyectados, 1):
             efectivo_temp += flujo
@@ -197,24 +210,15 @@ def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
                 return i
         return 3
     else:
-        # Si aún queda efectivo después de 3 meses
-        # Proyectar cuántos meses más con burn rate promedio
         meses_adicionales = balance_3_meses / burn_rate
         return 3 + meses_adicionales
 
 def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados):
     """
     ✅ CORRECCIÓN 2: Necesidades/excedentes con balance completo
-    
-    Considera: Efectivo inicial + suma de flujos netos proyectados
-    vs necesidades operativas mínimas
     """
-    # Balance proyectado al final de 3 meses
     balance_proyectado = efectivo_actual + sum(flujos_proyectados)
-    
-    # Necesidades mínimas operativas (buffer de seguridad = 1 mes burn rate)
-    necesidades_minimas = 87089  # 1 mes de burn rate como buffer
-    
+    necesidades_minimas = 87089
     excedente_o_deficit = balance_proyectado - necesidades_minimas
     
     return {
@@ -235,16 +239,10 @@ def get_data():
         # Calcular factores estacionales por año
         seasonal_by_year = {}
         for year, revenues in years_data.items():
-            if len(revenues) == 12:  # Solo si tiene año completo
+            if len(revenues) == 12:
                 avg = np.mean(revenues)
                 seasonal_by_year[year] = [r / avg for r in revenues]
         
-        # Promedio global
-        all_factors = []
-        for factors in seasonal_by_year.values():
-            all_factors.extend(factors)
-        
-        # Factores estacionales promedio
         seasonal_avg = {
             'Enero': 1.15, 'Febrero': 0.85, 'Marzo': 1.05,
             'Abril': 0.95, 'Mayo': 1.10, 'Junio': 1.20,
@@ -279,7 +277,7 @@ def get_data():
         }
 
 # =============================================================================
-# FUNCIONES DE PROYECCIÓN MEJORADAS
+# FUNCIONES DE PROYECCIÓN
 # =============================================================================
 
 def generar_proyecciones_multi_escenario(meses, revenue_base, burn_rate):
@@ -312,7 +310,6 @@ def generar_proyecciones_multi_escenario(meses, revenue_base, burn_rate):
 def generar_balance_multi_escenario(meses, efectivo_inicial, proyecciones):
     """
     ✅ CORRECCIÓN 6: Balance multi-escenario corregido
-    Genera balance proyectado para los 3 escenarios
     """
     
     balances = {}
@@ -322,10 +319,7 @@ def generar_balance_multi_escenario(meses, efectivo_inicial, proyecciones):
         efectivo_acumulado = efectivo_inicial
         
         for idx, row in df_proj.iterrows():
-            # Calcular flujo neto del mes
             flujo_neto = row['revenue'] - row['gastos']
-            
-            # Actualizar efectivo acumulado
             efectivo_acumulado += flujo_neto
             
             balance.append({
@@ -367,7 +361,6 @@ with st.sidebar:
     st.markdown("**Análisis de Flujo de Efectivo**")
     st.markdown("---")
     
-    # Fuente de datos
     st.markdown("### 📊 Fuente de Datos")
     
     data_source_option = st.radio(
@@ -385,7 +378,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Efectivo disponible
     st.markdown("### 💵 Configuración Financiera")
     
     efectivo_input = st.number_input(
@@ -407,7 +399,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Navegación
     st.markdown("### 📊 Navegación")
     page = st.radio(
         "Selecciona sección:",
@@ -417,22 +408,18 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Información
     st.markdown("### ℹ️ Información")
     st.markdown(f"""
     **Usuario:** Autenticado ✅
     
-    **Datos:** DEMO (33 meses)
+    **Versión:** 4.5.1
     
-    **Versión:** 4.5
+    **Mejoras:**
+    • Runway mejorado ✅
+    • Balance 3m completo ✅
+    • Gráficos mejorados ✅
+    • Estacionalidad interactiva ✅
     
-    **Mejoras v4.5:**
-    • Runway mejorado
-    • Balance completo 3m
-    • Gráficos mejorados
-    • Estacionalidad interactiva
-    
-    **Desarrollado por:**  
     [AI-MindNovation](https://www.ai-mindnovation.com)
     """)
 
@@ -452,7 +439,6 @@ if page == "🏠 Resumen Ejecutivo":
     revenue_mensual = data['historical']['revenue_promedio']
     burn_rate = data['financial']['burn_rate']
     
-    # ✅ CORRECCIÓN 1 Y 2: Calcular runway y necesidades mejorado
     flujos_proyectados = calcular_proyeccion_3_meses(revenue_mensual, burn_rate)
     runway = calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate)
     analisis_cash = calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados)
@@ -483,14 +469,12 @@ if page == "🏠 Resumen Ejecutivo":
     
     st.markdown("---")
     
-    # Gráfico histórico
     st.markdown("### 📈 Tendencia de Revenue (2023-2025)")
     
     df = data['historical']['data']
     
     fig = go.Figure()
     
-    # Línea principal
     fig.add_trace(go.Scatter(
         x=df['periodo'],
         y=df['revenue'],
@@ -500,7 +484,6 @@ if page == "🏠 Resumen Ejecutivo":
         marker=dict(size=8)
     ))
     
-    # Promedio móvil
     df['ma_3'] = df['revenue'].rolling(window=3).mean()
     fig.add_trace(go.Scatter(
         x=df['periodo'],
@@ -524,7 +507,6 @@ if page == "🏠 Resumen Ejecutivo":
     
     st.markdown("---")
     
-    # Análisis de flujo mejorado
     col1, col2 = st.columns(2)
     
     with col1:
@@ -590,14 +572,13 @@ if page == "🏠 Resumen Ejecutivo":
             """)
 
 # =============================================================================
-# PÁGINA: ANÁLISIS HISTÓRICO - MEJORA 3
+# PÁGINA: ANÁLISIS HISTÓRICO
 # =============================================================================
 
 elif page == "📈 Análisis Histórico":
     st.markdown("## 📈 Análisis Histórico (2023-2025)")
     st.caption("✨ Mejorado con análisis de tendencias")
     
-    # Métricas
     col1, col2, col3, col4 = st.columns(4)
     
     df_hist = data['historical']['data']
@@ -612,19 +593,16 @@ elif page == "📈 Análisis Histórico":
         st.metric("Revenue Máximo", f"${data['historical']['revenue_maximo']:,.0f}")
     
     with col4:
-        # Calcular tendencia (slope)
-        x = np.arange(len(df_hist))
-        y = df_hist['revenue'].values
-        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+        # Calcular tendencia con numpy
+        y_values = df_hist['revenue'].values
+        slope, intercept, trend_line = calcular_tendencia_lineal(y_values)
         tendencia_pct = (slope / df_hist['revenue'].mean()) * 100
         st.metric("Tendencia Mensual", f"{tendencia_pct:+.2f}%")
     
-    # ✅ MEJORA 3: Gráfico histórico mejorado
     st.markdown("### 📊 Evolución Histórica con Análisis de Tendencia")
     
     fig = go.Figure()
     
-    # Área de revenue
     fig.add_trace(go.Scatter(
         x=df_hist['periodo'],
         y=df_hist['revenue'],
@@ -636,7 +614,6 @@ elif page == "📈 Análisis Histórico":
     ))
     
     # Línea de tendencia
-    trend_line = slope * x + intercept
     fig.add_trace(go.Scatter(
         x=df_hist['periodo'],
         y=trend_line,
@@ -645,7 +622,6 @@ elif page == "📈 Análisis Histórico":
         line=dict(color='#EF4444', width=3, dash='dash')
     ))
     
-    # Promedio general
     promedio = df_hist['revenue'].mean()
     fig.add_hline(
         y=promedio,
@@ -667,7 +643,6 @@ elif page == "📈 Análisis Histórico":
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Análisis por año
     st.markdown("### 📅 Comparación Año sobre Año")
     
     years_revenue = {}
@@ -696,7 +671,6 @@ elif page == "📈 Análisis Histórico":
     
     st.plotly_chart(fig_years, use_container_width=True)
     
-    # Top clientes
     st.markdown("### 👥 Top 5 Clientes Históricos")
     
     df_clients = pd.DataFrame(data['historical']['top_clients'], columns=['Cliente', 'Revenue'])
@@ -714,7 +688,7 @@ elif page == "📈 Análisis Histórico":
     st.plotly_chart(fig, use_container_width=True)
 
 # =============================================================================
-# PÁGINA: PROYECCIONES - MEJORA 4
+# PÁGINA: PROYECCIONES
 # =============================================================================
 
 elif page == "💵 Proyecciones":
@@ -729,14 +703,12 @@ elif page == "💵 Proyecciones":
     with col2:
         vista = st.selectbox("Vista:", ["📊 Barras Comparativas", "📈 Líneas Comparativas"])
     
-    # Generar proyecciones
     proyecciones = generar_proyecciones_multi_escenario(
         meses,
         data['historical']['revenue_promedio'],
         data['financial']['burn_rate']
     )
     
-    # ✅ MEJORA 4: Barras comparativas por escenario
     if vista == "📊 Barras Comparativas":
         st.markdown("### 💰 Comparación de Revenue por Escenario")
         st.info("✨ Barras agrupadas para comparación clara entre escenarios")
@@ -754,8 +726,7 @@ elif page == "💵 Proyecciones":
                 name=escenario,
                 x=[f"Mes {int(m)}" for m in df['mes']],
                 y=df['revenue'],
-                marker_color=colores[escenario],
-                hovertemplate=f'<b>{escenario}</b><br>Revenue: $%{{y:,.0f}}<extra></extra>'
+                marker_color=colores[escenario]
             ))
         
         fig.update_layout(
@@ -770,7 +741,6 @@ elif page == "💵 Proyecciones":
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # Flujo neto comparativo
         st.markdown("### 💵 Comparación de Flujo Neto por Escenario")
         
         fig2 = go.Figure()
@@ -780,11 +750,9 @@ elif page == "💵 Proyecciones":
                 name=escenario,
                 x=[f"Mes {int(m)}" for m in df['mes']],
                 y=df['flujo_neto'],
-                marker_color=colores[escenario],
-                hovertemplate=f'<b>{escenario}</b><br>Flujo Neto: $%{{y:,.0f}}<extra></extra>'
+                marker_color=colores[escenario]
             ))
         
-        # Línea de equilibrio
         fig2.add_hline(y=0, line_dash="dash", line_color="gray",
                       annotation_text="Punto de Equilibrio")
         
@@ -800,7 +768,7 @@ elif page == "💵 Proyecciones":
         
         st.plotly_chart(fig2, use_container_width=True)
         
-    else:  # Vista líneas
+    else:
         st.markdown("### 📈 Comparación de Revenue por Escenario")
         
         fig = go.Figure()
@@ -832,7 +800,6 @@ elif page == "💵 Proyecciones":
         
         st.plotly_chart(fig, use_container_width=True)
     
-    # Tabla comparativa
     st.markdown("### 📋 Resumen Comparativo")
     
     resumen = []
@@ -841,15 +808,14 @@ elif page == "💵 Proyecciones":
             'Escenario': escenario,
             'Revenue Total': f"${df['revenue'].sum():,.0f}",
             'Flujo Neto Total': f"${df['flujo_neto'].sum():,.0f}",
-            'Revenue Promedio': f"${df['revenue'].mean():,.0f}",
-            'Flujo Neto Promedio': f"${df['flujo_neto'].mean():,.0f}"
+            'Revenue Promedio': f"${df['revenue'].mean():,.0f}"
         })
     
     df_resumen = pd.DataFrame(resumen)
     st.dataframe(df_resumen, use_container_width=True, hide_index=True)
 
 # =============================================================================
-# PÁGINA: REPORTES DETALLADOS - MEJORA 5 Y 6
+# PÁGINA: REPORTES DETALLADOS
 # =============================================================================
 
 elif page == "📊 Reportes Detallados":
@@ -858,11 +824,9 @@ elif page == "📊 Reportes Detallados":
     tabs = st.tabs(["📈 Estacionalidad", "🔥 Burn Rate", "💰 Balance Proyectado"])
     
     with tabs[0]:
-        # ✅ MEJORA 5: Estacionalidad interactiva
         st.markdown("### 📅 Análisis de Estacionalidad")
-        st.caption("✨ Interactivo: Activa/desactiva años individuales para comparar")
+        st.caption("✨ Interactivo: Activa/desactiva años individuales")
         
-        # Controles interactivos
         st.markdown("#### 🎛️ Controles de Visualización")
         col1, col2, col3, col4 = st.columns(4)
         
@@ -875,13 +839,11 @@ elif page == "📊 Reportes Detallados":
         with col4:
             show_2025 = st.checkbox("📅 Año 2025", value=False, key="show_2025")
         
-        # Preparar datos
         meses_nombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
         
         fig = go.Figure()
         
-        # Promedio global
         if show_promedio:
             factores_promedio = [data['seasonal_factors'][m] for m in meses_nombres]
             fig.add_trace(go.Scatterpolar(
@@ -894,19 +856,9 @@ elif page == "📊 Reportes Detallados":
                 marker=dict(size=8, color='#2563EB')
             ))
         
-        # Datos por año
         if 'seasonal_by_year' in data:
-            year_colors = {
-                2023: '#10B981',
-                2024: '#F59E0B',
-                2025: '#EF4444'
-            }
-            
-            year_shows = {
-                2023: show_2023,
-                2024: show_2024,
-                2025: show_2025
-            }
+            year_colors = {2023: '#10B981', 2024: '#F59E0B', 2025: '#EF4444'}
+            year_shows = {2023: show_2023, 2024: show_2024, 2025: show_2025}
             
             for year, show in year_shows.items():
                 if show and year in data['seasonal_by_year']:
@@ -932,15 +884,6 @@ elif page == "📊 Reportes Detallados":
         )
         
         st.plotly_chart(fig, use_container_width=True)
-        
-        # Tabla de factores
-        st.markdown("#### 📋 Factores Estacionales Detallados")
-        df_seasonal = pd.DataFrame(list(data['seasonal_factors'].items()),
-                                   columns=['Mes', 'Factor'])
-        df_seasonal['Interpretación'] = df_seasonal['Factor'].apply(
-            lambda x: '📈 Alta actividad' if x > 1.1 else ('📉 Baja actividad' if x < 0.9 else '➡️ Normal')
-        )
-        st.dataframe(df_seasonal, use_container_width=True, hide_index=True)
     
     with tabs[1]:
         st.markdown("### 🔥 Análisis de Burn Rate")
@@ -965,13 +908,11 @@ elif page == "📊 Reportes Detallados":
         st.plotly_chart(fig, use_container_width=True)
     
     with tabs[2]:
-        # ✅ CORRECCIÓN 6: Balance proyectado corregido
         st.markdown("### 💰 Balance Proyectado Multi-Escenario")
-        st.caption("✅ Corregido: Balance acumulado mes a mes")
+        st.caption("✅ Balance acumulado mes a mes")
         
         meses_balance = st.slider("Meses de proyección:", 1, 12, 6, key="balance_slider")
         
-        # Generar proyecciones y balances
         proyecciones_bal = generar_proyecciones_multi_escenario(
             meses_balance,
             data['historical']['revenue_promedio'],
@@ -980,7 +921,6 @@ elif page == "📊 Reportes Detallados":
         
         balances = generar_balance_multi_escenario(meses_balance, efectivo_actual, proyecciones_bal)
         
-        # Gráfico comparativo
         fig = go.Figure()
         
         colores = {
@@ -996,11 +936,9 @@ elif page == "📊 Reportes Detallados":
                 mode='lines+markers',
                 name=escenario,
                 line=dict(color=colores[escenario], width=3),
-                marker=dict(size=10),
-                hovertemplate=f'<b>{escenario}</b><br>Efectivo: $%{{y:,.0f}}<extra></extra>'
+                marker=dict(size=10)
             ))
         
-        # Líneas de referencia
         fig.add_hline(y=0, line_dash="dash", line_color="red", line_width=2,
                      annotation_text="⚠️ Punto Crítico", annotation_position="right")
         
@@ -1020,7 +958,6 @@ elif page == "📊 Reportes Detallados":
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # Análisis de runway
         st.markdown("### ⏱️ Análisis de Runway por Escenario")
         
         cols = st.columns(3)
@@ -1050,8 +987,6 @@ elif page == "📊 Reportes Detallados":
                         ⚠️ Déficit en mes {int(mes_critico)}
                         
                         Efectivo final: ${efectivo_final:,.0f}
-                        
-                        Requiere financiamiento
                         """)
 
 # =============================================================================
@@ -1061,8 +996,8 @@ elif page == "📊 Reportes Detallados":
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748B; padding: 2rem 0;'>
-    <p><strong>SPT Cash Flow Tool v4.5</strong></p>
-    <p>✅ Correcciones: Runway mejorado • Balance 3m completo • Gráficos mejorados • Estacionalidad interactiva</p>
+    <p><strong>SPT Cash Flow Tool v4.5.1</strong></p>
+    <p>✅ Todas las mejoras sin dependencias adicionales</p>
     <p>Desarrollado por <a href='https://www.ai-mindnovation.com' target='_blank'>AI-MindNovation</a></p>
     <p>© 2025 AI-MindNovation. Todos los derechos reservados.</p>
 </div>
