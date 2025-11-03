@@ -1,22 +1,28 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.5.4
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.5.5
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-CORRECCIONES v4.5.3:
+CORRECCIÓN CRÍTICA v4.5.5:
+🔧 PROBLEMA RESUELTO: KeyError en 'burn_rate'
+   - En v4.5.4 se modificó get_real_financial_data() para cálculo dinámico
+   - Se olvidó actualizar get_data() que aún intentaba acceder a campos inexistentes
+   - SOLUCIÓN: get_data() ahora calcula burn_rate dinámicamente usando calcular_burn_rate()
+
+CORRECCIONES v4.5.4 + v4.5.3:
 ✅ DATOS REALES del backend integrados
 ✅ Factores estacionales calculados desde datos históricos reales (2023-2025)
-✅ Burn rate calculado desde informe financiero real
+✅ Burn rate DINÁMICO: Gastos Fijos ($65,732) + (Revenue × 9.62%)
 ✅ Top clientes extraídos desde utilization reports reales
 ✅ Métricas financieras basadas en datos reales de operación
 + Todas las correcciones de v4.5.2
 
-DATOS REALES INTEGRADOS:
-• Revenue promedio: $127,467.51 USD/mes (calculado desde 33 meses de datos)
-• Burn rate: $77,994 USD/mes (Gastos Fijos: $65,732 + Costos Variables: 9.62% revenue)
-• Margen operativo: 38.8% (calculado con fórmula correcta del backend)
-• Factores estacionales: Calculados desde datos históricos 2023-2025
-• Top clientes: Consolidados desde utilization reports reales
+METODOLOGÍA BURN RATE (Backend Analysis):
+• Gastos Fijos: $65,732 USD/mes (no varían con revenue)
+• Costos Variables: 9.62% del revenue mensual
+• Fórmula: Burn Rate = $65,732 + (Revenue × 0.0962)
+• Ejemplo: Con revenue $127,468 → Burn Rate = $77,994 USD/mes
+• Margen operativo: 48.5% (histórico)
 
 Autor: AI-MindNovation
 Cliente: SPT Colombia
@@ -363,9 +369,10 @@ def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
         meses_adicionales = balance_3_meses / burn_rate
         return 3 + meses_adicionales
 
-def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados):
+def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
     """
     ✅ Necesidades/excedentes con balance completo
+    ✅ v4.5.5: Recibe burn_rate como parámetro (calculado dinámicamente)
     
     NOTA: Se mantiene el concepto de "necesidades mínimas" igual al burn rate
     real para mantener 1 mes de colchón operativo.
@@ -373,8 +380,7 @@ def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados
     balance_proyectado = efectivo_actual + sum(flujos_proyectados)
     
     # Necesidades mínimas = 1 mes de burn rate como colchón
-    financial_data = get_real_financial_data()
-    necesidades_minimas = financial_data['burn_rate']
+    necesidades_minimas = burn_rate
     
     excedente_o_deficit = balance_proyectado - necesidades_minimas
     
@@ -389,7 +395,8 @@ def get_data():
     """
     Retorna datos según la fuente (demo o real)
     
-    ✅ v4.5.3: Ahora todos los datos de demo también usan métricas reales
+    ✅ v4.5.5: CORRECCIÓN CRÍTICA - Cálculo dinámico del burn rate
+    ✅ v4.5.3: Todos los datos de demo también usan métricas reales
     del backend como base, eliminando completamente los valores hardcodeados.
     """
     
@@ -414,9 +421,14 @@ def get_data():
         # ✅ Usar top clientes REALES
         top_clients_real = get_real_top_clients()
         
+        # 🔧 CORRECCIÓN v4.5.5: Calcular burn_rate dinámicamente
+        # Usar revenue promedio histórico para el cálculo
+        revenue_promedio = df_historical['revenue'].mean()
+        burn_rate_data = calcular_burn_rate(revenue_promedio)
+        
         return {
             'historical': {
-                'revenue_promedio': int(df_historical['revenue'].mean()),
+                'revenue_promedio': int(revenue_promedio),
                 'revenue_minimo': int(df_historical['revenue'].min()),
                 'revenue_maximo': int(df_historical['revenue'].max()),
                 'top_clients': top_clients_real,  # ✅ DATOS REALES
@@ -425,14 +437,16 @@ def get_data():
                 'years_data': years_data
             },
             'financial': {
-                'burn_rate': financial_real['burn_rate'],            # ✅ REAL: $17,367
-                'gastos_fijos': financial_real['gastos_fijos'],      # ✅ REAL: $5,005
-                'costos_variables': financial_real['costos_variables'], # ✅ REAL: $12,362
-                'margen_operativo': financial_real['margen_operativo']  # ✅ REAL: 86.4%
+                'burn_rate': burn_rate_data['burn_rate'],           # ✅ CALCULADO dinámicamente
+                'gastos_fijos': burn_rate_data['gastos_fijos'],     # ✅ REAL: $65,732
+                'costos_variables': burn_rate_data['costos_variables'], # ✅ CALCULADO: Revenue × 9.62%
+                'tasa_costos_variables': financial_real['tasa_costos_variables'],  # ✅ Para proyecciones
+                'margen_operativo': financial_real['margen_operativo']  # ✅ REAL: 48.5%
             },
             'seasonal_factors': seasonal_avg,  # ✅ DATOS REALES calculados
             'seasonal_by_year': seasonal_by_year
         }
+
 
 # =============================================================================
 # FUNCIONES DE PROYECCIÓN
@@ -662,7 +676,7 @@ if page == "🏠 Resumen Ejecutivo":
     
     flujos_proyectados = calcular_proyeccion_3_meses(revenue_mensual, burn_rate)
     runway = calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate)
-    analisis_cash = calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados)
+    analisis_cash = calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados, burn_rate)
     
     # KPIs
     col1, col2, col3, col4 = st.columns(4)
