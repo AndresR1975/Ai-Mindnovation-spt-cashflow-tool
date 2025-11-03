@@ -1382,7 +1382,7 @@ elif page == "📊 Reportes Detallados":
         proyecciones_bal = generar_proyecciones_multi_escenario(
             meses_balance,
             data['historical']['revenue_promedio'],
-            data['financial']['burn_rate']
+            data['financial']  # 🆕 v4.6.1: Pasar dict completo, no solo burn_rate
         )
         
         balances = generar_balance_multi_escenario(meses_balance, efectivo_actual, proyecciones_bal)
