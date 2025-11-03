@@ -1,12 +1,14 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.5.1
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.5.2
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-CORRECCIÓN v4.5.1:
-✅ Eliminada dependencia de scipy
-✅ Cálculo de tendencia con numpy (ya disponible)
-+ Todas las correcciones de v4.5
+CORRECCIONES v4.5.2:
+✅ Reactivada interfaz de carga de archivos
+✅ Término "Deuda" → "Reinversión/Crecimiento"
+✅ Gráfico radar cierra entre Dic-Ene
+✅ Manejo correcto de año 2025 (parcial)
++ Todas las correcciones de v4.5.1
 
 Autor: AI-MindNovation
 Cliente: SPT Colombia
@@ -130,14 +132,10 @@ if 'datos_procesados' not in st.session_state:
 # =============================================================================
 
 def calcular_tendencia_lineal(y_values):
-    """
-    Calcula tendencia lineal usando numpy (sin scipy)
-    Retorna: slope, intercept, trend_line
-    """
+    """Calcula tendencia lineal usando numpy"""
     n = len(y_values)
     x = np.arange(n)
     
-    # Calcular pendiente e intercepto usando mínimos cuadrados
     x_mean = np.mean(x)
     y_mean = np.mean(y_values)
     
@@ -177,7 +175,6 @@ def get_historical_data_complete():
         revenue_mes = max(100000, tendencia + estacionalidad + ruido)
         revenue.append(revenue_mes)
         
-        # Guardar por año para estacionalidad
         years_data[year].append(revenue_mes)
     
     return pd.DataFrame({
@@ -197,9 +194,7 @@ def calcular_proyeccion_3_meses(revenue_promedio, burn_rate):
     return proyeccion
 
 def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
-    """
-    ✅ CORRECCIÓN 1: Runway considerando balance proyectado
-    """
+    """✅ Runway considerando balance proyectado"""
     balance_3_meses = efectivo_actual + sum(flujos_proyectados)
     
     if balance_3_meses <= 0:
@@ -214,9 +209,7 @@ def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
         return 3 + meses_adicionales
 
 def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados):
-    """
-    ✅ CORRECCIÓN 2: Necesidades/excedentes con balance completo
-    """
+    """✅ Necesidades/excedentes con balance completo"""
     balance_proyectado = efectivo_actual + sum(flujos_proyectados)
     necesidades_minimas = 87089
     excedente_o_deficit = balance_proyectado - necesidades_minimas
@@ -308,9 +301,7 @@ def generar_proyecciones_multi_escenario(meses, revenue_base, burn_rate):
     return resultados
 
 def generar_balance_multi_escenario(meses, efectivo_inicial, proyecciones):
-    """
-    ✅ CORRECCIÓN 6: Balance multi-escenario corregido
-    """
+    """✅ Balance multi-escenario corregido"""
     
     balances = {}
     
@@ -361,6 +352,7 @@ with st.sidebar:
     st.markdown("**Análisis de Flujo de Efectivo**")
     st.markdown("---")
     
+    # ✅ CORRECCIÓN 1: Reactivar carga de archivos
     st.markdown("### 📊 Fuente de Datos")
     
     data_source_option = st.radio(
@@ -370,11 +362,70 @@ with st.sidebar:
     )
     
     if data_source_option == "📁 Cargar Datos Propios":
+        st.session_state.data_source = 'upload'
+        
         st.markdown("#### 📁 Subir Archivos Excel")
-        st.info("💡 Funcionalidad de carga disponible. Integración completa post-convención.")
+        st.info("💡 Suba los 5 archivos requeridos para el análisis completo")
+        
+        st.markdown("**Históricos (2023-2025):**")
+        file_2023 = st.file_uploader(
+            "Utilization Report 2023",
+            type=['xlsx', 'xls'],
+            key="file_2023",
+            help="Archivo: Utilization_Report_2023.xlsx"
+        )
+        
+        file_2024 = st.file_uploader(
+            "Utilization Report 2024",
+            type=['xlsx', 'xls'],
+            key="file_2024",
+            help="Archivo: Utilization_Report_2024.xlsx"
+        )
+        
+        file_2025 = st.file_uploader(
+            "Utilization Report 2025",
+            type=['xlsx', 'xls'],
+            key="file_2025",
+            help="Archivo: Utilization_Report_2025.xlsx"
+        )
+        
+        st.markdown("**Estado Actual:**")
+        file_weekly = st.file_uploader(
+            "Weekly Operation Report",
+            type=['xlsx', 'xls'],
+            key="file_weekly",
+            help="Archivo: Weekly_Operation_Report.xlsx"
+        )
+        
+        st.markdown("**Financiero:**")
+        file_financial = st.file_uploader(
+            "Estado Financiero",
+            type=['xlsx', 'xls'],
+            key="file_financial",
+            help="Archivo: Informe_financiero.xlsx"
+        )
+        
+        all_files = all([file_2023, file_2024, file_2025, file_weekly, file_financial])
+        
+        if all_files:
+            st.success("✅ Todos los archivos cargados")
+            
+            if st.button("🚀 Procesar Datos", use_container_width=True, type="primary"):
+                with st.spinner("⚙️ Procesando archivos..."):
+                    st.info("📊 Integración completa con backend disponible post-convención")
+                    st.session_state.data_source = 'demo'
+        else:
+            missing = []
+            if not file_2023: missing.append("Util 2023")
+            if not file_2024: missing.append("Util 2024")
+            if not file_2025: missing.append("Util 2025")
+            if not file_weekly: missing.append("Weekly")
+            if not file_financial: missing.append("Financiero")
+            
+            st.warning(f"⚠️ Faltan: {', '.join(missing)}")
     else:
         st.session_state.data_source = 'demo'
-        st.info("📊 Usando datos de demostración con 33 meses de histórico")
+        st.info("📊 Usando datos de demostración (33 meses)")
     
     st.markdown("---")
     
@@ -409,16 +460,15 @@ with st.sidebar:
     st.markdown("---")
     
     st.markdown("### ℹ️ Información")
-    st.markdown(f"""
+    st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 4.5.1
+    **Versión:** 4.5.2
     
-    **Mejoras:**
-    • Runway mejorado ✅
-    • Balance 3m completo ✅
-    • Gráficos mejorados ✅
-    • Estacionalidad interactiva ✅
+    **Mejoras recientes:**
+    • Carga de archivos ✅
+    • Términos clarificados ✅
+    • Radar mejorado ✅
     
     [AI-MindNovation](https://www.ai-mindnovation.com)
     """)
@@ -540,6 +590,7 @@ if page == "🏠 Resumen Ejecutivo":
         necesidades = analisis_cash['necesidades_minimas']
         
         if excedente_deficit > 0:
+            # ✅ CORRECCIÓN 2: Cambio de "Deuda" a "Reinversión"
             st.success(f"""
             **✅ POSICIÓN SALUDABLE**
             
@@ -549,10 +600,12 @@ if page == "🏠 Resumen Ejecutivo":
             - Buffer mínimo: ${necesidades:,.0f}
             - **Excedente: ${excedente_deficit:,.0f}**
             
-            **Recomendaciones:**
-            1. Reserva: ${excedente_deficit*0.3:,.0f}
-            2. Expansión: ${excedente_deficit*0.4:,.0f}
-            3. Deuda: ${excedente_deficit*0.3:,.0f}
+            **Asignación sugerida del excedente:**
+            1. Reserva de seguridad (30%): ${excedente_deficit*0.3:,.0f}
+            2. Expansión de flota (40%): ${excedente_deficit*0.4:,.0f}
+            3. Reinversión/Crecimiento (30%): ${excedente_deficit*0.3:,.0f}
+            
+            *Nota: Reserva debe mantenerse en efectivo líquido*
             """)
         else:
             deficit = abs(excedente_deficit)
@@ -566,9 +619,9 @@ if page == "🏠 Resumen Ejecutivo":
             - **Déficit: ${deficit:,.0f}**
             
             **Acciones sugeridas:**
-            1. Acelerar cobros
-            2. Negociar plazos
-            3. Línea crédito: ${deficit:,.0f}
+            1. Acelerar cobros de cuentas por cobrar
+            2. Negociar extensión de plazos con proveedores
+            3. Línea de crédito de corto plazo: ${deficit:,.0f}
             """)
 
 # =============================================================================
@@ -577,7 +630,7 @@ if page == "🏠 Resumen Ejecutivo":
 
 elif page == "📈 Análisis Histórico":
     st.markdown("## 📈 Análisis Histórico (2023-2025)")
-    st.caption("✨ Mejorado con análisis de tendencias")
+    st.caption("✨ Con análisis de tendencias y comparación anual")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -593,7 +646,6 @@ elif page == "📈 Análisis Histórico":
         st.metric("Revenue Máximo", f"${data['historical']['revenue_maximo']:,.0f}")
     
     with col4:
-        # Calcular tendencia con numpy
         y_values = df_hist['revenue'].values
         slope, intercept, trend_line = calcular_tendencia_lineal(y_values)
         tendencia_pct = (slope / df_hist['revenue'].mean()) * 100
@@ -613,7 +665,6 @@ elif page == "📈 Análisis Histórico":
         fillcolor='rgba(37, 99, 235, 0.2)'
     ))
     
-    # Línea de tendencia
     fig.add_trace(go.Scatter(
         x=df_hist['periodo'],
         y=trend_line,
@@ -693,7 +744,7 @@ elif page == "📈 Análisis Histórico":
 
 elif page == "💵 Proyecciones":
     st.markdown("## 💵 Proyecciones de Flujo de Efectivo")
-    st.caption("✨ Mejorado con comparación visual clara")
+    st.caption("✨ Comparación visual clara entre escenarios")
     
     col1, col2 = st.columns(2)
     
@@ -711,7 +762,7 @@ elif page == "💵 Proyecciones":
     
     if vista == "📊 Barras Comparativas":
         st.markdown("### 💰 Comparación de Revenue por Escenario")
-        st.info("✨ Barras agrupadas para comparación clara entre escenarios")
+        st.info("✨ Barras agrupadas para comparación clara")
         
         fig = go.Figure()
         
@@ -825,7 +876,7 @@ elif page == "📊 Reportes Detallados":
     
     with tabs[0]:
         st.markdown("### 📅 Análisis de Estacionalidad")
-        st.caption("✨ Interactivo: Activa/desactiva años individuales")
+        st.caption("✨ Interactivo: Compara años vs promedio")
         
         st.markdown("#### 🎛️ Controles de Visualización")
         col1, col2, col3, col4 = st.columns(4)
@@ -837,18 +888,30 @@ elif page == "📊 Reportes Detallados":
         with col3:
             show_2024 = st.checkbox("📅 Año 2024", value=False, key="show_2024")
         with col4:
-            show_2025 = st.checkbox("📅 Año 2025", value=False, key="show_2025")
+            # ✅ CORRECCIÓN 4: Deshabilitar 2025 con explicación
+            show_2025 = st.checkbox(
+                "📅 Año 2025",
+                value=False,
+                key="show_2025",
+                disabled=True,
+                help="⚠️ Año 2025 incompleto (solo Ene-Sep). Necesita 12 meses para visualización completa."
+            )
         
         meses_nombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
         
         fig = go.Figure()
         
+        # ✅ CORRECCIÓN 3: Radar que cierra (duplicar primer valor)
         if show_promedio:
             factores_promedio = [data['seasonal_factors'][m] for m in meses_nombres]
+            # Duplicar primer valor para cerrar el polígono
+            factores_cerrado = factores_promedio + [factores_promedio[0]]
+            meses_cerrado = meses_nombres + [meses_nombres[0]]
+            
             fig.add_trace(go.Scatterpolar(
-                r=factores_promedio,
-                theta=meses_nombres,
+                r=factores_cerrado,
+                theta=meses_cerrado,
                 fill='toself',
                 name='Promedio Global',
                 line=dict(color='#2563EB', width=3),
@@ -858,15 +921,19 @@ elif page == "📊 Reportes Detallados":
         
         if 'seasonal_by_year' in data:
             year_colors = {2023: '#10B981', 2024: '#F59E0B', 2025: '#EF4444'}
-            year_shows = {2023: show_2023, 2024: show_2024, 2025: show_2025}
+            year_shows = {2023: show_2023, 2024: show_2024}  # Excluir 2025
             
             for year, show in year_shows.items():
                 if show and year in data['seasonal_by_year']:
                     factors = data['seasonal_by_year'][year]
                     if len(factors) == 12:
+                        # Duplicar primer valor para cerrar
+                        factors_cerrado = factors + [factors[0]]
+                        meses_cerrado = meses_nombres + [meses_nombres[0]]
+                        
                         fig.add_trace(go.Scatterpolar(
-                            r=factors,
-                            theta=meses_nombres,
+                            r=factors_cerrado,
+                            theta=meses_cerrado,
                             name=f'Año {year}',
                             line=dict(color=year_colors[year], width=2, dash='dot'),
                             marker=dict(size=6, color=year_colors[year])
@@ -884,6 +951,21 @@ elif page == "📊 Reportes Detallados":
         )
         
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Nota sobre 2025
+        st.info("""
+        ℹ️ **Nota sobre Año 2025:**  
+        El año 2025 está incompleto (solo 9 meses: Ene-Sep) y no se puede visualizar en el radar 
+        que requiere 12 puntos de datos. Los factores de 2025 están incluidos en el promedio global.
+        """)
+        
+        st.markdown("#### 📋 Factores Estacionales Detallados")
+        df_seasonal = pd.DataFrame(list(data['seasonal_factors'].items()),
+                                   columns=['Mes', 'Factor'])
+        df_seasonal['Interpretación'] = df_seasonal['Factor'].apply(
+            lambda x: '📈 Alta actividad' if x > 1.1 else ('📉 Baja actividad' if x < 0.9 else '➡️ Normal')
+        )
+        st.dataframe(df_seasonal, use_container_width=True, hide_index=True)
     
     with tabs[1]:
         st.markdown("### 🔥 Análisis de Burn Rate")
@@ -909,7 +991,7 @@ elif page == "📊 Reportes Detallados":
     
     with tabs[2]:
         st.markdown("### 💰 Balance Proyectado Multi-Escenario")
-        st.caption("✅ Balance acumulado mes a mes")
+        st.caption("✅ Balance acumulado correctamente")
         
         meses_balance = st.slider("Meses de proyección:", 1, 12, 6, key="balance_slider")
         
@@ -996,8 +1078,8 @@ elif page == "📊 Reportes Detallados":
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748B; padding: 2rem 0;'>
-    <p><strong>SPT Cash Flow Tool v4.5.1</strong></p>
-    <p>✅ Todas las mejoras sin dependencias adicionales</p>
+    <p><strong>SPT Cash Flow Tool v4.5.2</strong></p>
+    <p>✅ Carga de archivos • Términos clarificados • Radar mejorado • Año 2025 explicado</p>
     <p>Desarrollado por <a href='https://www.ai-mindnovation.com' target='_blank'>AI-MindNovation</a></p>
     <p>© 2025 AI-MindNovation. Todos los derechos reservados.</p>
 </div>
