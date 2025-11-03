@@ -1,28 +1,50 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.5.5
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.6.0
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-CORRECCIÓN CRÍTICA v4.5.5:
-🔧 PROBLEMA RESUELTO: KeyError en 'burn_rate'
-   - En v4.5.4 se modificó get_real_financial_data() para cálculo dinámico
-   - Se olvidó actualizar get_data() que aún intentaba acceder a campos inexistentes
-   - SOLUCIÓN: get_data() ahora calcula burn_rate dinámicamente usando calcular_burn_rate()
+🔥 CORRECCIONES CRÍTICAS v4.6.0 - FASE 1:
+==========================================
 
-CORRECCIONES v4.5.4 + v4.5.3:
-✅ DATOS REALES del backend integrados
-✅ Factores estacionales calculados desde datos históricos reales (2023-2025)
-✅ Burn rate DINÁMICO: Gastos Fijos ($65,732) + (Revenue × 9.62%)
-✅ Top clientes extraídos desde utilization reports reales
-✅ Métricas financieras basadas en datos reales de operación
-+ Todas las correcciones de v4.5.2
+1. ✅ BURN RATE DINÁMICO EN PROYECCIONES:
+   - generar_proyecciones_multi_escenario() ahora calcula burn rate según revenue
+   - calcular_proyeccion_3_meses() también usa cálculo dinámico
+   - Fórmula aplicada: Burn Rate = $65,732 + (Revenue × 0.0962)
+
+2. ✅ REFERENCIAS ACTUALIZADAS:
+   - Eliminadas todas las menciones al burn rate obsoleto de $17,367
+   - Actualizadas explicaciones con metodología correcta
+   - Valores correctos: Gastos Fijos $65,732, Costos Variables 9.62%
+
+3. ✅ NECESIDADES MÍNIMAS CONFIGURABLES:
+   - Nuevo control para seleccionar margen de protección (1, 2 o 3 meses)
+   - Permite ajustar según ciclo de pagos (30 días = 2 meses recomendado)
+   - Afecta cálculo de excedentes y recomendaciones
+
+4. ✅ TERMINOLOGÍA MEJORADA:
+   - "Gastos" reemplazado por "Egresos Totales" o "Costos y Gastos"
+   - Burn Rate mantenido como término técnico principal
+   - Claridad en componentes: Gastos Administrativos + Costos Operativos
+
+IMPACTO DE CORRECCIONES:
+========================
+• Proyecciones ahora matemáticamente correctas
+• Burn rate se ajusta dinámicamente con el revenue proyectado
+• Margen de protección configurable según necesidades operativas
+• Información actualizada y precisa en todo el dashboard
 
 METODOLOGÍA BURN RATE (Backend Analysis):
+==========================================
 • Gastos Fijos: $65,732 USD/mes (no varían con revenue)
 • Costos Variables: 9.62% del revenue mensual
 • Fórmula: Burn Rate = $65,732 + (Revenue × 0.0962)
 • Ejemplo: Con revenue $127,468 → Burn Rate = $77,994 USD/mes
 • Margen operativo: 48.5% (histórico)
+
+Versiones anteriores:
+- v4.5.5: Corrección KeyError, estructura base
+- v4.5.3: Integración datos reales
+- v4.5.2: Mejoras visualización
 
 Autor: AI-MindNovation
 Cliente: SPT Colombia
@@ -140,6 +162,10 @@ if 'archivos_cargados' not in st.session_state:
 
 if 'datos_procesados' not in st.session_state:
     st.session_state.datos_procesados = None
+
+# 🆕 v4.6.0: Meses de colchón para margen de protección
+if 'meses_colchon' not in st.session_state:
+    st.session_state.meses_colchon = 2  # Default: 2 meses (recomendado para pagos a 30 días)
 
 # =============================================================================
 # FUNCIONES AUXILIARES
@@ -343,13 +369,37 @@ def get_historical_data_complete():
         'revenue': revenue
     }), years_data
 
-def calcular_proyeccion_3_meses(revenue_promedio, burn_rate):
-    """Calcula proyección de flujo para próximos 3 meses"""
+def calcular_proyeccion_3_meses(revenue_promedio, financial_data):
+    """
+    Calcula proyección de flujo para próximos 3 meses
+    🆕 v4.6.0: Burn rate DINÁMICO según revenue de cada mes
+    
+    Args:
+        revenue_promedio: Revenue mensual promedio base
+        financial_data: Dict con gastos_fijos y tasa_costos_variables
+    
+    Returns:
+        Lista de flujos netos proyectados para 3 meses
+    
+    METODOLOGÍA:
+    Para cada mes proyectado:
+    1. Calcular revenue con variación aleatoria (-5% a +10%)
+    2. Calcular burn rate dinámico: Gastos Fijos + (Revenue × Tasa Costos)
+    3. Flujo neto = Revenue - Burn Rate dinámico
+    """
     proyeccion = []
+    gastos_fijos = financial_data['gastos_fijos']
+    tasa_costos = financial_data['tasa_costos_variables']
     
     for i in range(3):
+        # Revenue proyectado con variación
         revenue_mes = revenue_promedio * (1 + np.random.uniform(-0.05, 0.1))
-        flujo_neto = revenue_mes - burn_rate
+        
+        # 🆕 v4.6.0: Calcular burn rate DINÁMICO según revenue del mes
+        burn_rate_mes = gastos_fijos + (revenue_mes * tasa_costos)
+        
+        # Flujo neto con burn rate dinámico
+        flujo_neto = revenue_mes - burn_rate_mes
         proyeccion.append(flujo_neto)
     
     return proyeccion
@@ -369,18 +419,29 @@ def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
         meses_adicionales = balance_3_meses / burn_rate
         return 3 + meses_adicionales
 
-def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
+def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados, burn_rate, meses_colchon=2):
     """
     ✅ Necesidades/excedentes con balance completo
     ✅ v4.5.5: Recibe burn_rate como parámetro (calculado dinámicamente)
+    🆕 v4.6.0: Meses de colchón configurable
     
-    NOTA: Se mantiene el concepto de "necesidades mínimas" igual al burn rate
-    real para mantener 1 mes de colchón operativo.
+    Args:
+        efectivo_actual: Efectivo disponible actual
+        flujos_proyectados: Lista de flujos netos proyectados
+        burn_rate: Burn rate mensual (calculado dinámicamente)
+        meses_colchon: Número de meses de burn rate para margen de protección (1, 2 o 3)
+    
+    Returns:
+        dict con balance_proyectado, necesidades_minimas, excedente_deficit, flujos_mensuales
+    
+    NOTA: Con pagos a 30 días, se recomienda mínimo 2 meses de colchón:
+    - Mes 1: Cubrir operación actual
+    - Mes 2: Cubrir operación mientras se cobran ventas del mes 1
     """
     balance_proyectado = efectivo_actual + sum(flujos_proyectados)
     
-    # Necesidades mínimas = 1 mes de burn rate como colchón
-    necesidades_minimas = burn_rate
+    # 🆕 v4.6.0: Necesidades mínimas configurables (1, 2 o 3 meses)
+    necesidades_minimas = burn_rate * meses_colchon
     
     excedente_o_deficit = balance_proyectado - necesidades_minimas
     
@@ -388,7 +449,8 @@ def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados
         'balance_proyectado': balance_proyectado,
         'necesidades_minimas': necesidades_minimas,
         'excedente_deficit': excedente_o_deficit,
-        'flujos_mensuales': flujos_proyectados
+        'flujos_mensuales': flujos_proyectados,
+        'meses_colchon': meses_colchon  # Incluir para referencia
     }
 
 def get_data():
@@ -452,13 +514,35 @@ def get_data():
 # FUNCIONES DE PROYECCIÓN
 # =============================================================================
 
-def generar_proyecciones_multi_escenario(meses, revenue_base, burn_rate):
+def generar_proyecciones_multi_escenario(meses, revenue_base, financial_data):
     """
-    Genera proyecciones para los 3 escenarios
+    Genera proyecciones para los 3 escenarios con burn rate DINÁMICO
+    🆕 v4.6.0: Burn rate se calcula según el revenue de cada mes proyectado
     
-    Los escenarios consideran diferentes tasas de crecimiento y factores de ajuste
-    para modelar posibles trayectorias financieras futuras.
+    Args:
+        meses: Número de meses a proyectar (3-12)
+        revenue_base: Revenue mensual base (promedio histórico)
+        financial_data: Dict con gastos_fijos y tasa_costos_variables
+    
+    Returns:
+        Dict con 3 DataFrames (uno por escenario) con proyecciones
+    
+    ESCENARIOS:
+    - Conservador: -15% revenue inicial, +1% crecimiento mensual
+    - Moderado: revenue actual, +2% crecimiento mensual
+    - Optimista: +15% revenue inicial, +3% crecimiento mensual
+    
+    METODOLOGÍA (v4.6.0):
+    Para cada mes y escenario:
+    1. Calcular revenue según factor y crecimiento del escenario
+    2. Calcular burn rate DINÁMICO: $65,732 + (Revenue × 0.0962)
+    3. Calcular flujo neto: Revenue - Burn Rate dinámico
+    
+    Esto asegura que el burn rate se ajuste realísticamente con el nivel de operación.
     """
+    
+    gastos_fijos = financial_data['gastos_fijos']  # $65,732 fijos
+    tasa_costos = financial_data['tasa_costos_variables']  # 9.62%
     
     escenarios = {
         'Conservador': {'factor': 0.85, 'crecimiento': 0.01, 'color': '#EF4444'},
@@ -472,12 +556,20 @@ def generar_proyecciones_multi_escenario(meses, revenue_base, burn_rate):
         proyeccion = []
         
         for i in range(meses):
+            # Revenue proyectado para este mes y escenario
             revenue = revenue_base * config['factor'] * (1 + config['crecimiento'])**i
+            
+            # 🆕 v4.6.0: Burn rate DINÁMICO según revenue del mes
+            costos_variables = revenue * tasa_costos
+            burn_rate_mes = gastos_fijos + costos_variables
+            
             proyeccion.append({
                 'mes': i + 1,
                 'revenue': revenue,
-                'gastos': burn_rate,
-                'flujo_neto': revenue - burn_rate
+                'gastos_fijos': gastos_fijos,
+                'costos_variables': costos_variables,
+                'egresos_totales': burn_rate_mes,  # 🆕 Terminología mejorada
+                'flujo_neto': revenue - burn_rate_mes
             })
         
         resultados[nombre] = pd.DataFrame(proyeccion)
@@ -632,6 +724,31 @@ with st.sidebar:
     
     st.info(f"💰 **Efectivo actual:** ${efectivo_actual:,.0f}")
     
+    # 🆕 v4.6.0: Control de meses de colchón para margen de protección
+    st.markdown("#### 🛡️ Margen de Protección")
+    
+    meses_colchon = st.select_slider(
+        "Meses de Burn Rate como colchón:",
+        options=[1, 2, 3],
+        value=st.session_state.meses_colchon,
+        help="""
+        Define cuántos meses de burn rate mantener como margen de protección.
+        
+        • 1 mes: Mínimo operativo
+        • 2 meses: Recomendado (cubre ciclo de pagos a 30 días)
+        • 3 meses: Conservador
+        
+        Con pagos a clientes a 30 días, se recomienda al menos 2 meses 
+        para cubrir la operación mientras se cobran las ventas.
+        """
+    )
+    
+    if meses_colchon != st.session_state.meses_colchon:
+        st.session_state.meses_colchon = meses_colchon
+        st.rerun()
+    
+    st.caption(f"📊 Margen actual: {meses_colchon} {'mes' if meses_colchon == 1 else 'meses'}")
+    
     st.markdown("---")
     
     st.markdown("### 📊 Navegación")
@@ -647,13 +764,13 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 4.5.4
+    **Versión:** 4.6.0
     
-    **Mejoras v4.5.4:**
-    • ✅ Burn Rate con fórmula correcta
-    • ✅ Terminología: Egresos Totales
-    • ✅ Gráficos de barras restaurados
-    • ✅ Proyección máx: 12 meses
+    **🔥 Correcciones Críticas v4.6.0:**
+    • ✅ Burn Rate DINÁMICO en proyecciones
+    • ✅ Referencias actualizadas
+    • ✅ Margen de protección configurable (1-3 meses)
+    • ✅ Terminología mejorada: Egresos Totales
     
     [AI-MindNovation](https://www.ai-mindnovation.com)
     """)
@@ -671,12 +788,25 @@ data = get_data()
 if page == "🏠 Resumen Ejecutivo":
     st.markdown("## 🎯 Resumen Ejecutivo")
     
+    # 🆕 v4.6.0: Indicador visual de modo
+    if st.session_state.data_source == 'real' and st.session_state.datos_procesados:
+        st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
+    else:
+        st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
+    
     revenue_mensual = data['historical']['revenue_promedio']
     burn_rate = data['financial']['burn_rate']
     
-    flujos_proyectados = calcular_proyeccion_3_meses(revenue_mensual, burn_rate)
+    # 🆕 v4.6.0: Pasar financial_data completo para cálculo dinámico
+    flujos_proyectados = calcular_proyeccion_3_meses(revenue_mensual, data['financial'])
     runway = calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate)
-    analisis_cash = calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados, burn_rate)
+    # 🆕 v4.6.0: Pasar meses_colchon configurado por el usuario
+    analisis_cash = calcular_necesidades_excedentes_mejorado(
+        efectivo_actual, 
+        flujos_proyectados, 
+        burn_rate,
+        st.session_state.meses_colchon
+    )
     
     # KPIs
     col1, col2, col3, col4 = st.columns(4)
@@ -703,12 +833,13 @@ if page == "🏠 Resumen Ejecutivo":
     with col3:
         st.markdown('<div class="kpi-card">', unsafe_allow_html=True)
         excedente = analisis_cash['excedente_deficit']
+        meses_colchon = analisis_cash['meses_colchon']
         excedente_color = "🟢" if excedente > 0 else "🔴"
         st.metric(
             f"{excedente_color} Balance Proyectado (3m)",
             f"${excedente:,.0f}",
             delta=None,
-            help="Balance después de 3 meses - Necesidades mínimas"
+            help=f"Balance después de 3 meses - Margen de protección ({meses_colchon} {'mes' if meses_colchon == 1 else 'meses'} de burn rate)"
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -751,12 +882,15 @@ if page == "🏠 Resumen Ejecutivo":
         
         st.dataframe(metrics_df, use_container_width=True, hide_index=True)
         
-        st.info("""
-        💡 **Insight v4.5.3:**  
-        Los datos están basados en información real del backend. SPT Colombia 
-        muestra una operación muy eficiente con un burn rate mensual de $17K 
-        (incluye costos operativos y gastos administrativos), resultando en un 
-        margen operativo excepcional del 86.4%.
+        st.info(f"""
+        💡 **Metodología de Burn Rate (v4.6.0):**  
+        Los datos están basados en información real del backend. El burn rate se calcula 
+        dinámicamente: **${data['financial']['gastos_fijos']:,.0f}** (gastos fijos) + 
+        **{data['financial']['tasa_costos_variables']*100:.2f}%** del revenue (costos variables).
+        
+        Con el revenue promedio actual (${revenue_mensual:,.0f}), el burn rate es 
+        **${burn_rate:,.0f}**/mes, resultando en un margen operativo del 
+        **{data['financial']['margen_operativo']*100:.1f}%**.
         """)
     
     with col2:
@@ -905,10 +1039,11 @@ elif page == "💵 Proyecciones":
     
     meses_proyeccion = st.slider("Meses a proyectar:", 3, 12, 6, key="proyeccion_slider")
     
+    # 🆕 v4.6.0: Pasar financial_data completo para cálculo dinámico de burn rate
     proyecciones = generar_proyecciones_multi_escenario(
         meses_proyeccion,
         data['historical']['revenue_promedio'],
-        data['financial']['burn_rate']
+        data['financial']  # Pasamos todo el dict con gastos_fijos y tasa_costos_variables
     )
     
     # Tabs para cada escenario
@@ -949,14 +1084,16 @@ elif page == "💵 Proyecciones":
         
         st.plotly_chart(fig, use_container_width=True)
         
-        st.info("""
-        💡 **Interpretación:**
+        st.info(f"""
+        💡 **Interpretación (v4.6.0 - Burn Rate Dinámico):**
         - **Conservador (rojo):** Supone 15% menos revenue y crecimiento 1% mensual
         - **Moderado (azul):** Mantiene revenue actual con crecimiento 2% mensual
         - **Optimista (verde):** Supone 15% más revenue y crecimiento 3% mensual
         
-        ✅ Con el burn rate REAL ($17K), todos los escenarios muestran flujo neto 
-        positivo consistente, indicando una operación muy saludable.
+        🆕 **Con burn rate DINÁMICO:** El burn rate se ajusta automáticamente según el 
+        revenue de cada mes (Gastos Fijos ${data['financial']['gastos_fijos']:,.0f} + 
+        {data['financial']['tasa_costos_variables']*100:.1f}% del revenue). Esto permite 
+        proyecciones más precisas que reflejan la estructura real de costos de la operación.
         """)
     
     for idx, (escenario, df_proj) in enumerate(proyecciones.items(), 1):
@@ -987,10 +1124,11 @@ elif page == "💵 Proyecciones":
                 marker_color='lightblue'
             ))
             
+            # 🆕 v4.6.0: Actualizado a 'egresos_totales' (burn rate dinámico)
             fig.add_trace(go.Bar(
                 x=[f"Mes {m}" for m in df_proj['mes']],
-                y=[-x for x in df_proj['gastos']],
-                name='Gastos',
+                y=[-x for x in df_proj['egresos_totales']],
+                name='Egresos Totales',
                 marker_color='lightcoral'
             ))
             
@@ -1145,22 +1283,32 @@ elif page == "📊 Reportes Detallados":
     with tabs[1]:
         st.markdown("### 🔥 Análisis de Burn Rate")
         
-        st.success("""
-        🎯 **Actualización v4.5.3 - Burn Rate REAL:**
+        st.success(f"""
+        🎯 **Metodología de Burn Rate DINÁMICO (v4.6.0):**
         
-        El burn rate refleja los datos REALES del informe financiero:
-        • **Burn rate actual:** $17,367 USD/mes
-        • **Composición:** Gastos administrativos ($5,005) + Costos operativos ($12,362)
-        • **Interpretación:** Incluye todos los costos y gastos fijos de la operación
+        El burn rate se calcula dinámicamente según el revenue mensual:
+        
+        **Fórmula:** Burn Rate = Gastos Fijos + (Revenue × Tasa Costos Variables)
+        
+        **Componentes:**
+        • **Gastos Fijos:** ${data['financial']['gastos_fijos']:,.0f} USD/mes (no varían con revenue)
+          - Incluye: Admin, HR, Marketing, Salarios, Seguros, Impuestos
+        • **Costos Variables:** {data['financial']['tasa_costos_variables']*100:.2f}% del revenue mensual
+          - Incluye: Logística, Equipamiento (proporcional al nivel de operación)
+        
+        **Burn Rate con revenue promedio (${data['historical']['revenue_promedio']:,.0f}):**  
+        ${data['financial']['burn_rate']:,.0f} USD/mes
+        
+        **Margen Operativo:** {data['financial']['margen_operativo']*100:.1f}%
         """)
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Burn Rate Mensual (Total)", f"${data['financial']['burn_rate']:,.0f}",
-                     help="Total de egresos mensuales: gastos administrativos + costos operativos")
+            st.metric("Burn Rate Mensual", f"${data['financial']['burn_rate']:,.0f}",
+                     help=f"Con revenue promedio ${data['historical']['revenue_promedio']:,.0f}. Varía dinámicamente con el revenue real.")
         with col2:
-            st.metric("Gastos Administrativos", f"${data['financial']['gastos_fijos']:,.0f}",
-                     help="Gastos fijos administrativos mensuales")
+            st.metric("Gastos Fijos", f"${data['financial']['gastos_fijos']:,.0f}",
+                     help="Gastos administrativos mensuales que no varían con el revenue")
         with col3:
             st.metric("Costos Operativos", f"${data['financial']['costos_variables']:,.0f}",
                      help="Costos variables de operación mensuales")
@@ -1181,15 +1329,26 @@ elif page == "📊 Reportes Detallados":
         })
         
         fig = px.pie(burn_breakdown, values='Monto', names='Categoría',
-                     title='Distribución del Burn Rate REAL',
+                     title='Distribución del Burn Rate',
                      color_discrete_sequence=px.colors.sequential.Blues_r)
         fig.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig, use_container_width=True)
         
-        st.info("""
-        💡 **Insight:** 
-        El bajo burn rate ($17K/mes) vs revenue promedio ($127K/mes) resulta en un flujo 
-        neto positivo de $110K/mes, demostrando una operación altamente rentable.
+        revenue_prom = data['historical']['revenue_promedio']
+        burn_rate_calc = data['financial']['burn_rate']
+        flujo_neto = revenue_prom - burn_rate_calc
+        margen = (flujo_neto / revenue_prom) * 100
+        
+        st.info(f"""
+        💡 **Insight Financiero (v4.6.0):** 
+        Con revenue promedio de **${revenue_prom:,.0f}**/mes y burn rate dinámico de 
+        **${burn_rate_calc:,.0f}**/mes, la empresa genera un flujo neto de 
+        **${flujo_neto:,.0f}**/mes (margen {margen:.1f}%).
+        
+        Esto indica una operación saludable con capacidad de:
+        • Cubrir {(efectivo_actual / burn_rate_calc):.1f} meses de operación con efectivo actual
+        • Generar excedentes consistentes para inversión o distribución
+        • Mantener margen de protección adecuado configurado en {st.session_state.meses_colchon} meses
         """)
     
     with tabs[2]:
@@ -1274,16 +1433,20 @@ elif page == "📊 Reportes Detallados":
                         Efectivo final: ${efectivo_final:,.0f}
                         """)
         
-        st.success("""
-        🎯 **Conclusión con Datos Reales:**
+        st.success(f"""
+        🎯 **Conclusión con Burn Rate Dinámico (v4.6.0):**
         
-        Con el burn rate real de $17,367/mes (que incluye todos los costos y gastos), 
-        SPT Colombia muestra una posición financiera excepcionalmente saludable. 
-        Incluso en el escenario conservador, el efectivo crece consistentemente mes a mes.
+        Con la metodología de burn rate DINÁMICO (Gastos Fijos ${data['financial']['gastos_fijos']:,.0f} + 
+        {data['financial']['tasa_costos_variables']*100:.1f}% del revenue), SPT Colombia muestra proyecciones 
+        realistas que se ajustan al nivel de operación.
         
-        ✅ Margen operativo real: 86.4%  
-        ✅ Flujo neto mensual: $110,101 USD  
-        ✅ Runway proyectado: >36 meses en todos los escenarios
+        **Con revenue promedio actual (${data['historical']['revenue_promedio']:,.0f}):**
+        • Burn rate: ${data['financial']['burn_rate']:,.0f} USD/mes
+        • Margen operativo: {data['financial']['margen_operativo']*100:.1f}%  
+        • Flujo neto mensual: ${(data['historical']['revenue_promedio'] - data['financial']['burn_rate']):,.0f} USD
+        
+        Los 3 escenarios proyectan situaciones diferentes según crecimiento del revenue, 
+        con burn rate ajustándose proporcionalmente en cada caso.
         """)
 
 # =============================================================================
