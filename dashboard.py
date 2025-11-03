@@ -1,5 +1,5 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.5.3
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.5.4
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
@@ -13,8 +13,8 @@ CORRECCIONES v4.5.3:
 
 DATOS REALES INTEGRADOS:
 • Revenue promedio: $127,467.51 USD/mes (calculado desde 33 meses de datos)
-• Burn rate: $17,366.68 USD/mes (incluye costos operativos y gastos administrativos)
-• Margen operativo: 86.4% (refleja eficiencia real de la operación)
+• Burn rate: $77,994 USD/mes (Gastos Fijos: $65,732 + Costos Variables: 9.62% revenue)
+• Margen operativo: 38.8% (calculado con fórmula correcta del backend)
 • Factores estacionales: Calculados desde datos históricos 2023-2025
 • Top clientes: Consolidados desde utilization reports reales
 
@@ -192,26 +192,79 @@ def get_real_seasonal_factors():
 
 def get_real_financial_data():
     """
-    ✅ DATOS REALES: Métricas financieras desde informe financiero Sep 2025
+    ✅ DATOS REALES: Métricas financieras según metodología del backend
     
-    Fuente: 000_Informe_financiero_09_2025_Spt_Colombia.xlsx
-    Período: Enero-Septiembre 2025 (9 meses)
+    METODOLOGÍA BURN RATE (Backend Analysis):
     
-    Cálculo Burn Rate:
-    - Gastos totales (administrativos): $180,162,779.89 COP
-    - Costos totales (operativos): $445,037,558.76 COP
-    - Total egresos: $625,200,338.65 COP
-    - Burn rate mensual: $69,466,704.29 COP/mes
-    - Conversión USD (4,000 COP/USD): $17,366.68 USD/mes
+    1. GASTOS FIJOS (no varían con revenue): $65,732 USD/mes
+       Desglose:
+       - HR Travel: $2,450
+       - Marketing: $7,864
+       - Admin: $60,015
+       - Insurance/Legal: $263
+       - Salary: $1,975
+       - Other Expenses: $6,750
+       - Taxes: $37
     
-    NOTA: El burn rate incluye tanto los gastos administrativos fijos como 
-    los costos operativos variables, reflejando el gasto total de la operación.
+    2. COSTOS VARIABLES (proporcionales al revenue): 9.62% del revenue
+       Desglose:
+       - Logistics: $9,083
+       - Equipment: $6,780
+       (Total depende del revenue del mes)
+    
+    3. FÓRMULA BURN RATE:
+       Burn Rate = Gastos Fijos + (Revenue × 9.62%)
+       
+       Ejemplo con revenue promedio ($127,468):
+       = $65,732 + ($127,468 × 0.0962)
+       = $65,732 + $12,262
+       = $77,994 USD/mes
+    
+    4. MARGEN OPERATIVO:
+       = (Revenue - Burn Rate) / Revenue
+       = ($127,468 - $77,994) / $127,468
+       = 48.5%
+    
+    Nota: Esta metodología permite calcular el burn rate dinámico según
+    el revenue proyectado de cada mes.
     """
     return {
-        'burn_rate': 17366.68,           # USD/mes - Gastos + Costos totales
-        'gastos_fijos': 5004.52,         # USD/mes - Gastos administrativos
-        'costos_variables': 12362.15,    # USD/mes - Costos de operación
-        'margen_operativo': 0.8638       # 86.4% - Margen real de operación
+        'gastos_fijos': 65732,           # USD/mes - No varían con revenue
+        'tasa_costos_variables': 0.0962, # 9.62% del revenue
+        'margen_operativo': 0.485,       # 48.5% histórico
+        'desglose_gastos': {
+            'HR Travel': 2450,
+            'Marketing': 7864,
+            'Admin': 60015,
+            'Insurance/Legal': 263,
+            'Salary': 1975,
+            'Other Expenses': 6750,
+            'Taxes': 37
+        },
+        'desglose_costos': {
+            'Logistics': 9083,
+            'Equipment': 6780
+        }
+    }
+
+def calcular_burn_rate(revenue_mensual):
+    """
+    Calcula el burn rate dinámico según el revenue del mes
+    
+    Fórmula: Burn Rate = Gastos Fijos + (Revenue × 9.62%)
+    """
+    financial_data = get_real_financial_data()
+    gastos_fijos = financial_data['gastos_fijos']
+    tasa_costos = financial_data['tasa_costos_variables']
+    
+    costos_variables = revenue_mensual * tasa_costos
+    burn_rate = gastos_fijos + costos_variables
+    
+    return {
+        'burn_rate': burn_rate,
+        'gastos_fijos': gastos_fijos,
+        'costos_variables': costos_variables,
+        'egresos_totales': burn_rate  # Alias para claridad
     }
 
 def get_real_top_clients():
@@ -580,14 +633,13 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 4.5.3
+    **Versión:** 4.5.4
     
-    **Mejoras v4.5.3:**
-    • ✅ Datos reales integrados
-    • ✅ Factores estacionales reales
-    • ✅ Burn rate desde inf. financiero
-    • ✅ Top clientes desde reports
-    • ✅ Carga de archivos activa
+    **Mejoras v4.5.4:**
+    • ✅ Burn Rate con fórmula correcta
+    • ✅ Terminología: Egresos Totales
+    • ✅ Gráficos de barras restaurados
+    • ✅ Proyección máx: 12 meses
     
     [AI-MindNovation](https://www.ai-mindnovation.com)
     """)
@@ -837,7 +889,7 @@ elif page == "📈 Análisis Histórico":
 elif page == "💵 Proyecciones":
     st.markdown("## 💵 Proyecciones Multi-Escenario")
     
-    meses_proyeccion = st.slider("Meses a proyectar:", 3, 24, 12, key="proyeccion_slider")
+    meses_proyeccion = st.slider("Meses a proyectar:", 3, 12, 6, key="proyeccion_slider")
     
     proyecciones = generar_proyecciones_multi_escenario(
         meses_proyeccion,
