@@ -1,5 +1,5 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.0
+SPT CASH FLOW TOOL - Dashboard Streamlit v5.1.0
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
@@ -1022,99 +1022,20 @@ def calcular_tendencia_lineal(y_values):
 # DATOS REALES DEL BACKEND
 # =============================================================================
 
-def get_real_seasonal_factors():
-    """
-    ✅ DATOS REALES: Factores estacionales calculados desde datos históricos 2023-2025
-    
-    Metodología:
-    1. Se procesaron Utilization Reports de 2023, 2024 y 2025 (33 meses)
-    2. Se agrupó el revenue por mes (promediando los 3 años)
-    3. Se calculó el factor como: Revenue_mes / Revenue_promedio_global
-    
-    Interpretación:
-    - 1.0 = Mes promedio
-    - >1.0 = Mes con mayor actividad (ej: Julio 1.465 = +46.5% sobre promedio)
-    - <1.0 = Mes con menor actividad (ej: Diciembre 0.289 = -71.1% bajo promedio)
-    """
-    return {
-        'Enero': 0.760,      # -24.0% vs promedio
-        'Febrero': 0.945,    # -5.5% vs promedio  
-        'Marzo': 1.070,      # +7.0% vs promedio
-        'Abril': 1.055,      # +5.5% vs promedio
-        'Mayo': 0.988,       # -1.2% vs promedio
-        'Junio': 1.109,      # +10.9% vs promedio
-        'Julio': 1.465,      # +46.5% vs promedio ⭐ PICO MÁXIMO
-        'Agosto': 1.072,     # +7.2% vs promedio
-        'Septiembre': 1.167, # +16.7% vs promedio
-        'Octubre': 1.035,    # +3.5% vs promedio
-        'Noviembre': 1.046,  # +4.6% vs promedio
-        'Diciembre': 0.289   # -71.1% vs promedio ⚠️ MÍNIMO
-    }
+# v5.1.0: get_real_seasonal_factors() ELIMINADA - contenía datos hardcoded
 
-def get_real_financial_data():
-    """
-    ✅ DATOS REALES: Métricas financieras según metodología del backend
-    
-    METODOLOGÍA BURN RATE (Backend Analysis):
-    
-    1. GASTOS FIJOS (no varían con revenue): $65,732 USD/mes
-       Desglose:
-       - HR Travel: $2,450
-       - Marketing: $7,864
-       - Admin: $60,015
-       - Insurance/Legal: $263
-       - Salary: $1,975
-       - Other Expenses: $6,750
-       - Taxes: $37
-    
-    2. COSTOS VARIABLES (proporcionales al revenue): 9.62% del revenue
-       Desglose:
-       - Logistics: $9,083
-       - Equipment: $6,780
-       (Total depende del revenue del mes)
-    
-    3. FÓRMULA BURN RATE:
-       Burn Rate = Gastos Fijos + (Revenue × 9.62%)
-       
-       Ejemplo con revenue promedio ($127,468):
-       = $65,732 + ($127,468 × 0.0962)
-       = $65,732 + $12,262
-       = $77,994 USD/mes
-    
-    4. MARGEN OPERATIVO:
-       = (Revenue - Burn Rate) / Revenue
-       = ($127,468 - $77,994) / $127,468
-       = 48.5%
-    
-    Nota: Esta metodología permite calcular el burn rate dinámico según
-    el revenue proyectado de cada mes.
-    """
-    return {
-        'gastos_fijos': 65732,           # USD/mes - No varían con revenue
-        'tasa_costos_variables': 0.0962, # 9.62% del revenue
-        'margen_operativo': 0.485,       # 48.5% histórico
-        'desglose_gastos': {
-            'HR Travel': 2450,
-            'Marketing': 7864,
-            'Admin': 60015,
-            'Insurance/Legal': 263,
-            'Salary': 1975,
-            'Other Expenses': 6750,
-            'Taxes': 37
-        },
-        'desglose_costos': {
-            'Logistics': 9083,
-            'Equipment': 6780
-        }
-    }
+# v5.1.0: get_real_financial_data() ELIMINADA - contenía datos hardcoded
 
-def calcular_burn_rate(revenue_mensual):
+def calcular_burn_rate(revenue_mensual, gastos_fijos=65732, tasa_costos_variables=0.0962):
     """
-    Calcula el burn rate dinámico según el revenue del mes
+    ✅ v5.1.0: Recibe parámetros en lugar de función hardcoded
     
-    Fórmula: Burn Rate = Gastos Fijos + (Revenue × 9.62%)
+    Args:
+        revenue_mensual: Revenue del mes
+        gastos_fijos: Gastos fijos mensuales (default desde backend)
+        tasa_costos_variables: Tasa de costos variables (default desde backend)
     """
-    financial_data = get_real_financial_data()
+    # financial_data = get_real_financial_data()  # ELIMINADO en v5.1.0
     gastos_fijos = financial_data['gastos_fijos']
     tasa_costos = financial_data['tasa_costos_variables']
     
@@ -1128,23 +1049,7 @@ def calcular_burn_rate(revenue_mensual):
         'egresos_totales': burn_rate  # Alias para claridad
     }
 
-def get_real_top_clients():
-    """
-    ✅ DATOS REALES: Top clientes desde Utilization Reports 2023-2025
-    
-    Fuente: Utilization_Report_-_Colombia_OFICIAL_[2023|2024|2025].xlsx
-    Método: Suma de 'Accrual Revenue' por cliente en los 33 meses
-    
-    NOTA: Algunos clientes aparecen con nombres ligeramente diferentes
-    (ej: "Kluane/Aris" vs "Kluane") debido a cambios en nomenclatura.
-    """
-    return [
-        ('Kluane/Aris', 475310),      # $475K acumulado 2023-2025
-        ('Explomin/Segovia', 423676),  # $424K acumulado
-        ('Collective mining', 384940), # $385K acumulado
-        ('Kluane', 383764),            # $384K acumulado
-        ('Explomin', 244442)           # $244K acumulado
-    ]
+# v5.1.0: get_real_top_clients() ELIMINADA - contenía datos hardcoded
 
 def get_equipos_disponibles():
     """
@@ -1218,23 +1123,8 @@ def get_equipos_disponibles():
     
     # 🔌 DATOS SIMULADOS - Fallback si no se pueden cargar datos reales
     print("ℹ️  Usando equipos simulados (Weekly Report no encontrado)")
-    equipos_simulados = [
-        {"serial": "GTH-001", "tipo": "Telehandler", "estado": "Available"},
-        {"serial": "GTH-002", "tipo": "Telehandler", "estado": "StandBy"},
-        {"serial": "GTH-003", "tipo": "Telehandler", "estado": "Available"},
-        {"serial": "SL-204", "tipo": "Scissor Lift", "estado": "Available"},
-        {"serial": "SL-205", "tipo": "Scissor Lift", "estado": "StandBy"},
-        {"serial": "SL-206", "tipo": "Scissor Lift", "estado": "Available"},
-        {"serial": "BL-105", "tipo": "Boom Lift", "estado": "Available"},
-        {"serial": "BL-106", "tipo": "Boom Lift", "estado": "StandBy"},
-        {"serial": "FK-301", "tipo": "Forklift", "estado": "Available"},
-        {"serial": "FK-302", "tipo": "Forklift", "estado": "Available"},
-        {"serial": "AP-401", "tipo": "Aerial Platform", "estado": "Available"},
-        {"serial": "AP-402", "tipo": "Aerial Platform", "estado": "StandBy"},
-        {"serial": "ML-501", "tipo": "Material Lift", "estado": "Available"},
-        {"serial": "PL-601", "tipo": "Personnel Lift", "estado": "Available"},
-        {"serial": "PL-602", "tipo": "Personnel Lift", "estado": "StandBy"},
-    ]
+    # v5.1.0: Retornar lista vacía en lugar de datos simulados
+    return []
     
     # Agregar campo 'display' para mostrar en dropdown
     for equipo in equipos_simulados:
@@ -1304,13 +1194,8 @@ def get_clientes_historicos():
     
     # 🔌 DATOS DEMO - Fallback si no se pueden cargar datos reales
     print("ℹ️  Usando clientes demo (Utilization Report no encontrado)")
-    clientes_demo = {
-        'Kluane/Aris',
-        'Explomin/Segovia', 
-        'Collective Mining',
-        'Kluane',
-        'Explomin'
-    }
+    # v5.1.0: Retornar set vacío en lugar de datos demo
+    return set()
     
     return clientes_demo
 
@@ -1777,60 +1662,19 @@ def calcular_transferencias_con_balance(proyecciones_df, efectivo_inicial, meses
 
 def get_data():
     """
-    Retorna datos según la fuente (demo o real)
+    ✅ v5.1.0: Retorna datos SOLO si el usuario ha cargado y procesado archivos
     
-    ✅ v4.5.5: CORRECCIÓN CRÍTICA - Cálculo dinámico del burn rate
-    ✅ v4.5.3: Todos los datos de demo también usan métricas reales
-    del backend como base, eliminando completamente los valores hardcodeados.
+    CAMBIO CRÍTICO:
+    - Si no hay datos procesados: retorna None
+    - Dashboard debe manejar None mostrando mensaje de "Cargue archivos"
+    - NO hay datos por defecto ni datos simulados
     """
     
     if st.session_state.data_source == 'real' and st.session_state.datos_procesados:
         return st.session_state.datos_procesados
-    else:
-        df_historical, years_data = get_historical_data_complete()
-        
-        # Calcular factores estacionales por año
-        seasonal_by_year = {}
-        for year, revenues in years_data.items():
-            if len(revenues) == 12:
-                avg = np.mean(revenues)
-                seasonal_by_year[year] = [r / avg for r in revenues]
-        
-        # ✅ CAMBIO PRINCIPAL: Usar factores estacionales REALES
-        seasonal_avg = get_real_seasonal_factors()
-        
-        # ✅ Usar métricas financieras REALES
-        financial_real = get_real_financial_data()
-        
-        # ✅ Usar top clientes REALES
-        top_clients_real = get_real_top_clients()
-        
-        # 🔧 CORRECCIÓN v4.5.5: Calcular burn_rate dinámicamente
-        # Usar revenue promedio histórico para el cálculo
-        revenue_promedio = df_historical['revenue'].mean()
-        burn_rate_data = calcular_burn_rate(revenue_promedio)
-        
-        return {
-            'historical': {
-                'revenue_promedio': int(revenue_promedio),
-                'revenue_minimo': int(df_historical['revenue'].min()),
-                'revenue_maximo': int(df_historical['revenue'].max()),
-                'top_clients': top_clients_real,  # ✅ DATOS REALES
-                'periodos': 33,
-                'data': df_historical,
-                'years_data': years_data
-            },
-            'financial': {
-                'burn_rate': burn_rate_data['burn_rate'],           # ✅ CALCULADO dinámicamente
-                'gastos_fijos': burn_rate_data['gastos_fijos'],     # ✅ REAL: $65,732
-                'costos_variables': burn_rate_data['costos_variables'], # ✅ CALCULADO: Revenue × 9.62%
-                'tasa_costos_variables': financial_real['tasa_costos_variables'],  # ✅ Para proyecciones
-                'margen_operativo': financial_real['margen_operativo']  # ✅ REAL: 48.5%
-            },
-            'seasonal_factors': seasonal_avg,  # ✅ DATOS REALES calculados
-            'seasonal_by_year': seasonal_by_year
-        }
-
+    
+    # ✅ v5.1.0: Si no hay datos, retornar None
+    return None
 
 # =============================================================================
 # FUNCIONES DE PROYECCIÓN
@@ -3241,16 +3085,13 @@ elif page == "📝 Ingreso Manual":
             st.session_state.equipos_temp_quote = []
         
         # Tipos de equipos comunes en SPT
-        tipos_equipos = [
-            "Telehandler",
-            "Scissor Lift",
-            "Boom Lift",
-            "Forklift",
-            "Aerial Platform",
-            "Material Lift",
-            "Personnel Lift",
-            "Otro"
-        ]
+        # ✅ v5.1.0: Obtener tipos REALES desde Weekly Report
+        equipos_temp = get_equipos_disponibles()
+        if equipos_temp and len(equipos_temp) > 0:
+            tipos_equipos_reales = sorted(list(set([eq['tipo'] for eq in equipos_temp])))
+            tipos_equipos = tipos_equipos_reales + ["Otro"]
+        else:
+            tipos_equipos = ["Especificar tipo"]
         
         # 🆕 v4.9.3.1: OBTENER CLIENTES DESDE UTILIZATION REPORT REAL
         clientes_disponibles = ["Nuevo cliente..."]
@@ -3895,8 +3736,8 @@ elif page == "📝 Ingreso Manual":
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748B; padding: 2rem 0;'>
-    <p><strong>SPT Cash Flow Tool v5.0.0</strong></p>
-    <p>✅ 100% Datos REALES desde archivos del usuario • CERO datos hardcoded • Listo para convención</p>
+    <p><strong>SPT Cash Flow Tool v5.1.0</strong></p>
+    <p>✅ Dashboard empieza en $0 • Sin datos hasta cargar archivos • 100% transparencia</p>
     <p>Desarrollado por <a href='https://www.ai-mindnovation.com' target='_blank'>AI-MindNovation</a></p>
     <p>© 2025 AI-MindNovation. Todos los derechos reservados.</p>
 </div>
