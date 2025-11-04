@@ -1,7 +1,43 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.8.0
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.8.1
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🔧 CORRECCIONES CRÍTICAS v4.8.1 (Noviembre 3, 2025):
+=====================================================
+✅ CORRECCIONES FUNDAMENTALES EN LÓGICA FINANCIERA:
+
+  1. PROYECCIONES DETERMINISTAS:
+     ❌ ANTES: Usaba np.random - números cambiaban al mover cualquier control
+     ✅ AHORA: Proyecciones deterministas - números consistentes y predecibles
+     - Elimina variación aleatoria completamente
+     - Escenarios usan factores fijos (Conservador: -15%, Moderado: 0%, Optimista: +15%)
+     - Crecimiento mensual predecible (1%, 2%, 3% según escenario)
+  
+  2. TRANSFERENCIAS DESCUENTAN DEL BALANCE:
+     ❌ ANTES: Transferencias no afectaban el balance - error conceptual crítico
+     ✅ AHORA: Al final de cada trimestre, la transferencia se DESCUENTA del balance
+     - Balance mes 4 parte del balance después de transferencia trimestre 1
+     - Proyecciones realistas reflejan el efectivo real disponible
+     - Nueva función: calcular_transferencias_con_balance()
+  
+  3. INVERSIONES COMO RECOMENDACIONES VIRTUALES:
+     ✅ Las inversiones NO afectan el balance principal (son sugerencias)
+     ✅ Se mantiene cálculo de beneficios esperados
+     ✅ Enfoque conservador para proyecciones financieras
+  
+  4. SELECTOR DE ESCENARIO:
+     ✅ Nuevo control en sidebar: Conservador / Moderado / Optimista
+     ✅ Las transferencias se calculan según el escenario seleccionado
+     ✅ Indicador visual del escenario en uso (🟠/🟢/🔵)
+     - Permite análisis de sensibilidad en diferentes condiciones
+     - Balance después de transferencias varía según escenario
+
+  IMPACTO DE CORRECCIONES:
+  - Proyecciones ahora son matemáticamente correctas y reproducibles
+  - Balance refleja el flujo real de efectivo después de transferencias
+  - Los números ya NO cambian al mover otros controles
+  - Análisis financiero mucho más preciso y útil para toma de decisiones
 
 🎉 NUEVAS FUNCIONALIDADES v4.8.0 (Noviembre 3, 2025):
 =====================================================
@@ -460,6 +496,10 @@ if 'meses_colchon' not in st.session_state:
 if 'dias_liquidacion' not in st.session_state:
     st.session_state.dias_liquidacion = 15  # Default: 15 días antes
 
+# 🆕 v4.8.1: Escenario para proyecciones y transferencias
+if 'escenario_proyeccion' not in st.session_state:
+    st.session_state.escenario_proyeccion = 'Moderado'  # Default: Moderado
+
 # =============================================================================
 # FUNCIONES AUXILIARES
 # =============================================================================
@@ -843,9 +883,67 @@ def generar_recomendaciones_inversion(df_excedentes, rentabilidad_estimada=0.10)
     
     return pd.DataFrame(recomendaciones) if recomendaciones else pd.DataFrame()
 
+def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, escenario):
+    """
+    🆕 v4.8.1: Genera proyecciones DETERMINISTAS según escenario seleccionado
+    
+    CORRECCIÓN CRÍTICA: Elimina variación aleatoria para que las proyecciones
+    sean consistentes y no cambien al mover otros controles.
+    
+    Args:
+        revenue_base: Revenue mensual base (promedio histórico)
+        financial_data: Dict con gastos_fijos y tasa_costos_variables
+        meses: Número de meses a proyectar
+        escenario: 'Conservador', 'Moderado' o 'Optimista'
+    
+    Returns:
+        DataFrame con columnas: ['mes', 'revenue', 'egresos_totales', 'flujo_neto']
+    
+    ESCENARIOS:
+    - Conservador: -15% revenue inicial, +1% crecimiento mensual
+    - Moderado: revenue base, +2% crecimiento mensual
+    - Optimista: +15% revenue inicial, +3% crecimiento mensual
+    """
+    
+    gastos_fijos = financial_data['gastos_fijos']
+    tasa_costos = financial_data['tasa_costos_variables']
+    
+    # Configuración de escenarios
+    config_escenarios = {
+        'Conservador': {'factor': 0.85, 'crecimiento': 0.01},
+        'Moderado': {'factor': 1.0, 'crecimiento': 0.02},
+        'Optimista': {'factor': 1.15, 'crecimiento': 0.03}
+    }
+    
+    config = config_escenarios[escenario]
+    
+    proyecciones = []
+    
+    for i in range(meses):
+        # Revenue proyectado DETERMINISTA (sin random)
+        revenue_mes = revenue_base * config['factor'] * (1 + config['crecimiento'])**i
+        
+        # Burn rate dinámico según revenue del mes
+        costos_variables = revenue_mes * tasa_costos
+        egresos_totales = gastos_fijos + costos_variables
+        
+        # Flujo neto
+        flujo_neto = revenue_mes - egresos_totales
+        
+        proyecciones.append({
+            'mes': i + 1,
+            'revenue': revenue_mes,
+            'egresos_totales': egresos_totales,
+            'flujo_neto': flujo_neto
+        })
+    
+    return pd.DataFrame(proyecciones)
+
 def calcular_transferencias_trimestrales(proyecciones_df, meses_a_proyectar):
     """
     🆕 v4.8.0: Calcula transferencias TRIMESTRALES a casa matriz según política SPT
+    ⚠️ NOTA v4.8.1: Esta función NO descuenta transferencias del balance
+    Para balance ajustado, usar calcular_transferencias_con_balance()
     
     POLÍTICA SPT GLOBAL:
     - Utilidad neta local debe ser 10% del revenue
@@ -904,6 +1002,113 @@ def calcular_transferencias_trimestrales(proyecciones_df, meses_a_proyectar):
         'trimestres': pd.DataFrame(trimestres),
         'numero_trimestres': numero_trimestres,
         'total_transferencias': sum([t['transferencia_hq'] for t in trimestres])
+    }
+
+def calcular_transferencias_con_balance(proyecciones_df, efectivo_inicial, meses_a_proyectar):
+    """
+    🆕 v4.8.1: Calcula transferencias Y balance ajustado después de cada transferencia
+    
+    CORRECCIÓN CRÍTICA: Al final de cada trimestre, la transferencia se DESCUENTA
+    del balance, por lo que el siguiente trimestre parte con menos efectivo.
+    
+    Args:
+        proyecciones_df: DataFrame con proyecciones (debe tener 'mes', 'revenue', 'flujo_neto')
+        efectivo_inicial: Efectivo disponible al inicio del período
+        meses_a_proyectar: Número total de meses proyectados
+    
+    Returns:
+        dict con:
+        - 'trimestres': DataFrame con análisis trimestral
+        - 'balance_mensual': DataFrame con balance mes a mes (DESPUÉS de transferencias)
+        - 'total_transferencias': Total transferido
+        - 'balance_final': Balance después de todas las transferencias
+    
+    LÓGICA:
+    1. Acumular flujo neto mes a mes
+    2. Al final de cada trimestre:
+       - Calcular transferencia (Flujo Neto Trimestral - 10% Revenue Trimestral)
+       - DESCONTAR transferencia del balance
+       - Continuar con balance ajustado
+    """
+    
+    numero_trimestres = int(np.ceil(meses_a_proyectar / 3))
+    
+    trimestres = []
+    balance_mensual = []
+    
+    balance_actual = efectivo_inicial
+    
+    for trimestre_num in range(1, numero_trimestres + 1):
+        # Determinar qué meses corresponden a este trimestre
+        mes_inicio = (trimestre_num - 1) * 3 + 1
+        mes_fin = min(trimestre_num * 3, meses_a_proyectar)
+        
+        # Balance al inicio del trimestre
+        balance_inicio_trimestre = balance_actual
+        
+        # Acumular flujo mes a mes durante el trimestre
+        df_trimestre = proyecciones_df[
+            (proyecciones_df['mes'] >= mes_inicio) & 
+            (proyecciones_df['mes'] <= mes_fin)
+        ]
+        
+        revenue_total = 0
+        flujo_neto_total = 0
+        
+        for idx, row in df_trimestre.iterrows():
+            # Acumular balance
+            balance_actual += row['flujo_neto']
+            revenue_total += row['revenue']
+            flujo_neto_total += row['flujo_neto']
+            
+            # Guardar balance mensual (ANTES de transferencia)
+            balance_mensual.append({
+                'mes': int(row['mes']),
+                'trimestre': f'T{trimestre_num}',
+                'balance_antes_transferencia': balance_actual,
+                'flujo_neto_mes': row['flujo_neto']
+            })
+        
+        # Al final del trimestre: calcular y aplicar transferencia
+        utilidad_local = revenue_total * 0.10
+        transferencia_hq = max(0, flujo_neto_total - utilidad_local)
+        
+        # CRÍTICO: Descontar transferencia del balance
+        balance_despues_transferencia = balance_actual - transferencia_hq
+        
+        # Guardar info del trimestre
+        trimestres.append({
+            'trimestre': f'T{trimestre_num}',
+            'meses': f'{mes_inicio}-{mes_fin}',
+            'balance_inicio': balance_inicio_trimestre,
+            'revenue_total': revenue_total,
+            'flujo_neto_total': flujo_neto_total,
+            'utilidad_local_10pct': utilidad_local,
+            'transferencia_hq': transferencia_hq,
+            'balance_despues_transferencia': balance_despues_transferencia,
+            'margen_retenido': (utilidad_local / revenue_total * 100) if revenue_total > 0 else 0
+        })
+        
+        # Actualizar balance para el siguiente trimestre
+        balance_actual = balance_despues_transferencia
+        
+        # Actualizar el último mes del trimestre con balance después de transferencia
+        if balance_mensual:
+            balance_mensual[-1]['balance_despues_transferencia'] = balance_despues_transferencia
+            balance_mensual[-1]['transferencia_aplicada'] = transferencia_hq
+    
+    # Completar información de meses sin transferencia
+    for i, bm in enumerate(balance_mensual):
+        if 'balance_despues_transferencia' not in bm:
+            bm['balance_despues_transferencia'] = bm['balance_antes_transferencia']
+            bm['transferencia_aplicada'] = 0
+    
+    return {
+        'trimestres': pd.DataFrame(trimestres),
+        'balance_mensual': pd.DataFrame(balance_mensual),
+        'numero_trimestres': numero_trimestres,
+        'total_transferencias': sum([t['transferencia_hq'] for t in trimestres]),
+        'balance_final': balance_actual
     }
 
 def get_data():
@@ -1259,6 +1464,39 @@ with st.sidebar:
     
     st.caption(f"⏱️ Liquidar {dias_liquidacion} días antes")
     
+    # 🆕 v4.8.1: Selector de escenario para proyecciones y transferencias
+    st.markdown("#### 📊 Escenario de Proyección")
+    
+    escenario = st.selectbox(
+        "Escenario para análisis:",
+        options=['Conservador', 'Moderado', 'Optimista'],
+        index=['Conservador', 'Moderado', 'Optimista'].index(st.session_state.escenario_proyeccion),
+        help="""
+        Selecciona el escenario para calcular proyecciones y transferencias:
+        
+        • **Conservador:** -15% revenue inicial, +1% crecimiento mensual
+        • **Moderado:** Revenue actual, +2% crecimiento mensual
+        • **Optimista:** +15% revenue inicial, +3% crecimiento mensual
+        
+        Este escenario afecta:
+        - Cálculo de excedentes invertibles
+        - Transferencias a casa matriz
+        - Balance proyectado después de transferencias
+        """
+    )
+    
+    if escenario != st.session_state.escenario_proyeccion:
+        st.session_state.escenario_proyeccion = escenario
+        st.rerun()
+    
+    # Indicador visual del escenario actual
+    emoji_escenario = {
+        'Conservador': '🟠',
+        'Moderado': '🟢',
+        'Optimista': '🔵'
+    }
+    st.caption(f"{emoji_escenario[escenario]} Escenario: **{escenario}**")
+    
     st.markdown("---")
     
     st.markdown("### 📊 Navegación")
@@ -1274,13 +1512,17 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 4.8.0
+    **Versión:** 4.8.1
     
-    **🎉 NUEVO en v4.8.0 - FASE 3:**
-    • ✅ Badge indicador corregido (verde para datos reales)
+    **🔧 NUEVO en v4.8.1 - CORRECCIONES CRÍTICAS:**
+    • ✅ Proyecciones DETERMINISTAS (sin random)
+    • ✅ Transferencias DESCUENTAN del balance
+    • ✅ Inversiones como recomendaciones virtuales
+    • ✅ Selector de ESCENARIO (Conservador/Moderado/Optimista)
+    
+    **🎉 FASE 3 (v4.8.0):**
     • ✅ Gestión de Excedentes e Inversiones Temporales
     • ✅ Transferencias Trimestrales a Casa Matriz
-    • ✅ Configuración de días de liquidación
     
     **🔥 Correcciones v4.6.0:**
     • ✅ Burn Rate DINÁMICO en proyecciones
@@ -1474,18 +1716,16 @@ if page == "🏠 Resumen Ejecutivo":
     para operación. Los fondos se liquidan automáticamente con la anticipación configurada.
     """)
     
-    # Generar proyecciones para 3 meses (ya tenemos flujos_proyectados)
-    # Crear DataFrame con la estructura necesaria
-    proyecciones_3m = pd.DataFrame({
-        'mes': [1, 2, 3],
-        'revenue': [revenue_mensual * (1 + np.random.uniform(-0.05, 0.1)) for _ in range(3)],
-        'flujo_neto': flujos_proyectados
-    })
+    # 🆕 v4.8.1: Generar proyecciones DETERMINISTAS según escenario seleccionado
+    # CORRECCIÓN: Elimina np.random para que proyecciones sean consistentes
+    proyecciones_3m = generar_proyecciones_por_escenario(
+        revenue_mensual,
+        data['financial'],
+        meses=3,
+        escenario=st.session_state.escenario_proyeccion
+    )
     
-    # Calcular egresos totales implícitos
-    proyecciones_3m['egresos_totales'] = proyecciones_3m['revenue'] - proyecciones_3m['flujo_neto']
-    
-    # Calcular excedentes invertibles
+    # Calcular excedentes invertibles (inversiones VIRTUALES - no afectan balance)
     df_excedentes = calcular_excedentes_invertibles(
         proyecciones_3m, 
         efectivo_actual, 
@@ -1564,29 +1804,62 @@ if page == "🏠 Resumen Ejecutivo":
     st.markdown("---")
     st.markdown("### 🌍 Transferencias a Casa Matriz (SPT Global)")
     
-    st.info("""
+    # Indicador del escenario actual
+    emoji_escenario = {
+        'Conservador': '🟠',
+        'Moderado': '🟢',
+        'Optimista': '🔵'
+    }
+    st.info(f"""
     **Política SPT Global:** La utilidad neta local debe ser del 10% del revenue. 
     Las transferencias se realizan por **trimestre vencido**, permitiendo a la filial 
     local aprovechar inversiones temporales durante el trimestre.
+    
+    {emoji_escenario[st.session_state.escenario_proyeccion]} **Calculado con escenario: {st.session_state.escenario_proyeccion}**
     """)
     
-    # Calcular transferencias trimestrales
-    resultado_transferencias = calcular_transferencias_trimestrales(proyecciones_3m, meses_a_proyectar=3)
+    # 🆕 v4.8.1: Calcular transferencias CON balance ajustado después de cada transferencia
+    # CORRECCIÓN: Las transferencias ahora se DESCUENTAN del balance
+    resultado_transferencias = calcular_transferencias_con_balance(
+        proyecciones_3m, 
+        efectivo_actual,
+        meses_a_proyectar=3
+    )
     
     df_trimestres = resultado_transferencias['trimestres']
+    df_balance_mensual = resultado_transferencias['balance_mensual']
     
-    # Mostrar tabla de transferencias
+    # Mostrar tabla de transferencias CON balance
     st.markdown("#### 📋 Detalle de Transferencias Trimestrales")
     
-    # Preparar tabla para display
-    df_trans_display = df_trimestres[['trimestre', 'revenue_total', 'flujo_neto_total', 'utilidad_local_10pct', 'transferencia_hq']].copy()
-    df_trans_display.columns = ['Trimestre', 'Revenue Total', 'Flujo Neto Total', 'Utilidad Local (10%)', 'Transferencia HQ']
+    # Preparar tabla para display (ahora incluye balance)
+    df_trans_display = df_trimestres[[
+        'trimestre', 'balance_inicio', 'revenue_total', 'flujo_neto_total', 
+        'utilidad_local_10pct', 'transferencia_hq', 'balance_despues_transferencia'
+    ]].copy()
+    df_trans_display.columns = [
+        'Trimestre', 'Balance Inicio', 'Revenue Total', 'Flujo Neto Total', 
+        'Utilidad Local (10%)', 'Transferencia HQ', 'Balance después Transfer.'
+    ]
     
     # Formatear valores
-    for col in ['Revenue Total', 'Flujo Neto Total', 'Utilidad Local (10%)', 'Transferencia HQ']:
+    for col in df_trans_display.columns[1:]:  # Todas excepto 'Trimestre'
         df_trans_display[col] = df_trans_display[col].apply(lambda x: f"${x:,.0f}")
     
     st.dataframe(df_trans_display, use_container_width=True, hide_index=True)
+    
+    # Alerta sobre balance después de transferencias
+    balance_final = resultado_transferencias['balance_final']
+    if balance_final < burn_rate * st.session_state.meses_colchon:
+        st.warning(f"""
+        ⚠️ **Atención:** Después de las transferencias, el balance final (${balance_final:,.0f}) 
+        está por debajo de las necesidades mínimas (${burn_rate * st.session_state.meses_colchon:,.0f}).
+        """)
+    else:
+        st.success(f"""
+        ✅ Después de las transferencias, el balance final (${balance_final:,.0f}) 
+        mantiene un margen saludable sobre las necesidades mínimas.
+        """)
     
     # Resumen de transferencias
     col1, col2, col3 = st.columns(3)
@@ -1608,13 +1881,12 @@ if page == "🏠 Resumen Ejecutivo":
         )
     
     with col3:
-        if revenue_total_periodo > 0:
-            margen_efectivo = (utilidad_total / revenue_total_periodo) * 100
-            st.metric(
-                "Margen Retenido",
-                f"{margen_efectivo:.1f}%",
-                help="Porcentaje del revenue que se retiene localmente"
-            )
+        st.metric(
+            "Balance Final",
+            f"${balance_final:,.0f}",
+            delta=f"{balance_final - efectivo_actual:+,.0f}",
+            help="Balance después de flujos netos y transferencias trimestrales"
+        )
     
     # Gráfico de distribución del flujo neto
     st.markdown("#### 📊 Distribución del Flujo Neto")
@@ -1643,7 +1915,7 @@ if page == "🏠 Resumen Ejecutivo":
         
         fig_transfer.update_layout(
             barmode='stack',
-            title='Distribución del Flujo Neto: Utilidad Local vs Transferencia HQ',
+            title=f'Distribución del Flujo Neto: Utilidad Local vs Transferencia HQ (Escenario {st.session_state.escenario_proyeccion})',
             xaxis_title='Trimestre',
             yaxis_title='Monto (USD)',
             height=400,
