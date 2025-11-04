@@ -965,7 +965,7 @@ if 'efectivo_disponible' not in st.session_state:
     st.session_state.efectivo_disponible = None
 
 if 'data_source' not in st.session_state:
-    st.session_state.data_source = 'demo'
+    st.session_state.data_source = None  # v5.1.0: Sin datos por defecto
 
 if 'archivos_cargados' not in st.session_state:
     st.session_state.archivos_cargados = {}
@@ -1670,7 +1670,8 @@ def get_data():
     - NO hay datos por defecto ni datos simulados
     """
     
-    if st.session_state.data_source == 'real' and st.session_state.datos_procesados:
+    # Verificar si hay datos procesados (independiente del valor de data_source)
+    if st.session_state.get('datos_procesados') is not None:
         return st.session_state.datos_procesados
     
     # ✅ v5.1.0: Si no hay datos, retornar None
@@ -1798,13 +1799,14 @@ with st.sidebar:
     # ✅ CORRECCIÓN 1: Reactivar carga de archivos
     st.markdown("### 📊 Fuente de Datos")
     
-    data_source_option = st.radio(
-        "Seleccione:",
-        ["📈 Datos de Demostración", "📁 Cargar Datos Propios"],
-        index=0 if st.session_state.data_source == 'demo' else 1
+    # ✅ v5.1.0: Sin opción de demostración - siempre carga de archivos
+    if not st.session_state.get("datos_procesados"):
+        st.info("💡 **Dashboard en blanco** - Todas las métricas en $0 hasta que cargue archivos")
+    
     )
     
-    if data_source_option == "📁 Cargar Datos Propios":
+    # v5.1.0: Siempre en modo carga de archivos
+    st.session_state.data_source = "real"  # Será real después de procesar
         st.session_state.data_source = 'upload'
         
         st.markdown("#### 📁 Subir Archivos Excel")
@@ -1894,11 +1896,11 @@ with st.sidebar:
                             st.rerun()
                         else:
                             st.error("❌ Error al procesar archivos. Revise el formato de los archivos.")
-                            st.session_state.data_source = 'demo'
+                            # v5.1.0: Ya no hay modo demo - comentado
                             
                     except Exception as e:
                         st.error(f"❌ Error durante el procesamiento: {str(e)}")
-                        st.session_state.data_source = 'demo'
+                        # v5.1.0: Ya no hay modo demo - comentado
         else:
             missing = []
             if not file_2023: missing.append("Util 2023")
@@ -1908,8 +1910,6 @@ with st.sidebar:
             if not file_financial: missing.append("Financiero")
             
             st.warning(f"⚠️ Faltan: {', '.join(missing)}")
-    else:
-        st.session_state.data_source = 'demo'
         st.info("📊 Usando datos reales de demostración (métricas calculadas desde archivos históricos)")
     
     st.markdown("---")
@@ -2088,7 +2088,7 @@ if page == "🏠 Resumen Ejecutivo":
     if st.session_state.data_source == 'real':
         st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
     else:
-        st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
+        # v5.1.0: Mensaje de demo eliminado
     
     revenue_mensual = data['historical']['revenue_promedio']
     burn_rate = data['financial']['burn_rate']
