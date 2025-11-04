@@ -2071,6 +2071,19 @@ data = get_data()
 if page == "🏠 Resumen Ejecutivo":
     st.markdown("## 🎯 Resumen Ejecutivo")
     
+    # ✅ v5.1.0: Verificar si hay datos antes de continuar
+    if data is None:
+        st.warning("📁 **Cargue sus archivos Excel para comenzar**")
+        st.info("""
+        Para usar el dashboard, debe:
+        1. Ir a la página "🏠 Inicio"
+        2. Cargar los 5 archivos Excel requeridos
+        3. Hacer clic en "🚀 Procesar Datos"
+        
+        El dashboard permanecerá en blanco hasta que cargue los datos.
+        """)
+        st.stop()
+    
     # 🆕 v4.8.0: Indicador visual corregido - muestra verde cuando hay datos reales
     if st.session_state.data_source == 'real':
         st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
@@ -2465,6 +2478,19 @@ if page == "🏠 Resumen Ejecutivo":
 elif page == "📈 Análisis Histórico":
     st.markdown("## 📈 Análisis Histórico")
     
+    # ✅ v5.1.0: Verificar si hay datos antes de continuar
+    if data is None:
+        st.warning("📁 **Cargue sus archivos Excel para comenzar**")
+        st.info("""
+        Para usar el dashboard, debe:
+        1. Ir a la página "🏠 Inicio"
+        2. Cargar los 5 archivos Excel requeridos
+        3. Hacer clic en "🚀 Procesar Datos"
+        
+        El dashboard permanecerá en blanco hasta que cargue los datos.
+        """)
+        st.stop()
+    
     df_hist = data['historical']['data']
     
     col1, col2, col3 = st.columns(3)
@@ -2549,6 +2575,19 @@ elif page == "📈 Análisis Histórico":
 
 elif page == "💵 Proyecciones":
     st.markdown("## 💵 Proyecciones Multi-Escenario")
+    
+    # ✅ v5.1.0: Verificar si hay datos antes de continuar
+    if data is None:
+        st.warning("📁 **Cargue sus archivos Excel para comenzar**")
+        st.info("""
+        Para usar el dashboard, debe:
+        1. Ir a la página "🏠 Inicio"
+        2. Cargar los 5 archivos Excel requeridos
+        3. Hacer clic en "🚀 Procesar Datos"
+        
+        El dashboard permanecerá en blanco hasta que cargue los datos.
+        """)
+        st.stop()
     
     meses_proyeccion = st.slider("Meses a proyectar:", 3, 12, 6, key="proyeccion_slider")
     
@@ -2773,6 +2812,19 @@ elif page == "💵 Proyecciones":
 
 elif page == "📊 Reportes Detallados":
     st.markdown("## 📊 Reportes Detallados")
+    
+    # ✅ v5.1.0: Verificar si hay datos antes de continuar
+    if data is None:
+        st.warning("📁 **Cargue sus archivos Excel para comenzar**")
+        st.info("""
+        Para usar el dashboard, debe:
+        1. Ir a la página "🏠 Inicio"
+        2. Cargar los 5 archivos Excel requeridos
+        3. Hacer clic en "🚀 Procesar Datos"
+        
+        El dashboard permanecerá en blanco hasta que cargue los datos.
+        """)
+        st.stop()
     
     tabs = st.tabs(["📈 Estacionalidad", "🔥 Burn Rate", "💰 Balance Proyectado"])
     
