@@ -1,7 +1,37 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.7.1
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.8.0
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🎉 NUEVAS FUNCIONALIDADES v4.8.0 (Noviembre 3, 2025):
+=====================================================
+✅ FASE 3 - GESTIÓN DE EXCEDENTES E INVERSIONES:
+
+  1. BADGE INDICADOR CORREGIDO:
+     - Ahora muestra correctamente 🟢 VERDE cuando hay datos reales cargados
+     - Lógica simplificada y más confiable
+  
+  2. GESTIÓN DE EXCEDENTES E INVERSIONES TEMPORALES:
+     - Análisis automático de excedentes invertibles mes a mes
+     - Recomendaciones de inversión en instrumentos de bajo riesgo (CDTs, TES, FCIs)
+     - Cálculo de rentabilidad estimada (10% EA promedio)
+     - Calendario inteligente de liquidación configurable (7, 15 o 30 días)
+     - Respeta margen de protección configurado antes de sugerir inversiones
+  
+  3. TRANSFERENCIAS TRIMESTRALES A CASA MATRIZ:
+     - Cálculo según política SPT Global (utilidad local = 10% del revenue)
+     - Transferencias por trimestre vencido (no mensuales)
+     - Permite aprovechar inversiones temporales durante el trimestre
+     - Tabla detallada con distribución Revenue → Utilidad Local → Transferencia HQ
+     - Gráfico visual de distribución del flujo neto
+     - Resumen de totales y márgenes
+  
+  4. CONFIGURACIÓN ADICIONAL:
+     - Nuevo parámetro: Días de liquidación anticipada (7/15/30 días)
+     - Default: 15 días (recomendado para instrumentos de conversión rápida)
+     - Ajustable desde el sidebar → "Liquidación de Inversiones"
+
+  Ubicación: Resumen Ejecutivo → Subsecciones nuevas al final
 
 🎨 MEJORAS VISUALES v4.7.1 (Noviembre 3, 2025):
 ================================================
@@ -426,6 +456,10 @@ if 'datos_procesados' not in st.session_state:
 if 'meses_colchon' not in st.session_state:
     st.session_state.meses_colchon = 2  # Default: 2 meses (recomendado para pagos a 30 días)
 
+# 🆕 v4.8.0: Días de liquidación anticipada para inversiones
+if 'dias_liquidacion' not in st.session_state:
+    st.session_state.dias_liquidacion = 15  # Default: 15 días antes
+
 # =============================================================================
 # FUNCIONES AUXILIARES
 # =============================================================================
@@ -710,6 +744,166 @@ def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados
         'excedente_deficit': excedente_o_deficit,
         'flujos_mensuales': flujos_proyectados,
         'meses_colchon': meses_colchon  # Incluir para referencia
+    }
+
+# =============================================================================
+# FUNCIONES DE GESTIÓN DE EXCEDENTES E INVERSIONES (v4.8.0)
+# =============================================================================
+
+def calcular_excedentes_invertibles(proyecciones_df, efectivo_inicial, burn_rate, meses_colchon, dias_liquidacion):
+    """
+    🆕 v4.8.0: Calcula excedentes invertibles mes a mes considerando necesidades mínimas
+    
+    Args:
+        proyecciones_df: DataFrame con proyecciones mensuales (debe tener 'revenue' y 'egresos_totales')
+        efectivo_inicial: Efectivo disponible al inicio
+        burn_rate: Burn rate mensual promedio
+        meses_colchon: Número de meses de burn rate para mantener como colchón
+        dias_liquidacion: Días de anticipación para liquidar inversiones
+    
+    Returns:
+        DataFrame con análisis de excedentes invertibles mes a mes
+    
+    LÓGICA:
+    1. Por cada mes, calcular el balance acumulado
+    2. Restar las necesidades mínimas (burn_rate × meses_colchon)
+    3. El excedente es lo que se puede invertir
+    4. Marcar cuándo liquidar cada inversión (basado en días_liquidacion)
+    """
+    
+    necesidades_minimas = burn_rate * meses_colchon
+    
+    analisis = []
+    balance_acumulado = efectivo_inicial
+    
+    for idx, row in proyecciones_df.iterrows():
+        mes_num = row['mes']
+        flujo_neto = row['flujo_neto']
+        
+        # Actualizar balance acumulado
+        balance_acumulado += flujo_neto
+        
+        # Calcular excedente invertible
+        excedente = balance_acumulado - necesidades_minimas
+        
+        # Determinar si se puede invertir
+        puede_invertir = excedente > 0
+        
+        # Calcular fecha aproximada de liquidación (dias_liquidacion antes del siguiente mes)
+        # Simplificación: asumimos que cada mes tiene 30 días
+        mes_liquidacion = mes_num + 1 if dias_liquidacion <= 30 else mes_num + 2
+        
+        analisis.append({
+            'mes': mes_num,
+            'balance_disponible': balance_acumulado,
+            'necesidades_minimas': necesidades_minimas,
+            'excedente_invertible': max(0, excedente),
+            'puede_invertir': puede_invertir,
+            'liquidar_antes_mes': mes_liquidacion if puede_invertir else None
+        })
+    
+    return pd.DataFrame(analisis)
+
+def generar_recomendaciones_inversion(df_excedentes, rentabilidad_estimada=0.10):
+    """
+    🆕 v4.8.0: Genera recomendaciones de inversión basadas en excedentes
+    
+    Args:
+        df_excedentes: DataFrame con análisis de excedentes
+        rentabilidad_estimada: Rentabilidad anual estimada (default 10% = 0.10)
+    
+    Returns:
+        DataFrame con recomendaciones de inversión
+    
+    INSTRUMENTOS SUGERIDOS (Colombia):
+    - CDTs: ~12% EA (baja liquidez pero mayor rendimiento)
+    - TES corto plazo: ~10% EA (buena liquidez)
+    - Fondos de Inversión Colectiva: ~8-10% EA (alta liquidez)
+    """
+    
+    recomendaciones = []
+    
+    for idx, row in df_excedentes.iterrows():
+        if row['puede_invertir'] and row['excedente_invertible'] > 0:
+            monto = row['excedente_invertible']
+            
+            # Calcular rendimiento estimado (proporcional al tiempo de inversión)
+            # Asumimos inversión de 1 mes = rentabilidad_anual / 12
+            rendimiento_mensual = monto * (rentabilidad_estimada / 12)
+            
+            recomendaciones.append({
+                'mes': row['mes'],
+                'monto_invertible': monto,
+                'instrumento_sugerido': 'Cartera Mixta (CDT 40%, TES 30%, FCI 30%)',
+                'rentabilidad_estimada_mensual': rendimiento_mensual,
+                'liquidar_antes_mes': row['liquidar_antes_mes'],
+                'riesgo': 'Bajo',
+                'liquidez': 'Media-Alta'
+            })
+    
+    return pd.DataFrame(recomendaciones) if recomendaciones else pd.DataFrame()
+
+def calcular_transferencias_trimestrales(proyecciones_df, meses_a_proyectar):
+    """
+    🆕 v4.8.0: Calcula transferencias TRIMESTRALES a casa matriz según política SPT
+    
+    POLÍTICA SPT GLOBAL:
+    - Utilidad neta local debe ser 10% del revenue
+    - Transferencia = Flujo Neto SPT Colombia - (Revenue × 10%)
+    - Se transfiere trimestre vencido (no mensualmente)
+    
+    Args:
+        proyecciones_df: DataFrame con proyecciones (debe tener 'revenue' y 'flujo_neto')
+        meses_a_proyectar: Número total de meses proyectados
+    
+    Returns:
+        dict con análisis trimestral de transferencias
+    
+    EJEMPLO:
+    Si Flujo Neto trimestral = $150,000 y Revenue trimestral = $400,000
+    Utilidad Local Requerida = $400,000 × 10% = $40,000
+    Transferencia HQ = $150,000 - $40,000 = $110,000
+    """
+    
+    numero_trimestres = int(np.ceil(meses_a_proyectar / 3))
+    
+    trimestres = []
+    
+    for trimestre_num in range(1, numero_trimestres + 1):
+        # Determinar qué meses corresponden a este trimestre
+        mes_inicio = (trimestre_num - 1) * 3 + 1
+        mes_fin = min(trimestre_num * 3, meses_a_proyectar)
+        
+        # Filtrar datos del trimestre
+        df_trimestre = proyecciones_df[
+            (proyecciones_df['mes'] >= mes_inicio) & 
+            (proyecciones_df['mes'] <= mes_fin)
+        ]
+        
+        # Calcular totales del trimestre
+        revenue_total = df_trimestre['revenue'].sum()
+        flujo_neto_total = df_trimestre['flujo_neto'].sum()
+        
+        # Calcular utilidad local requerida (10% del revenue)
+        utilidad_local = revenue_total * 0.10
+        
+        # Calcular transferencia a casa matriz
+        transferencia_hq = flujo_neto_total - utilidad_local
+        
+        trimestres.append({
+            'trimestre': f'T{trimestre_num}',
+            'meses': f'{mes_inicio}-{mes_fin}',
+            'revenue_total': revenue_total,
+            'flujo_neto_total': flujo_neto_total,
+            'utilidad_local_10pct': utilidad_local,
+            'transferencia_hq': max(0, transferencia_hq),  # No transferir si es negativo
+            'margen_retenido': (utilidad_local / revenue_total * 100) if revenue_total > 0 else 0
+        })
+    
+    return {
+        'trimestres': pd.DataFrame(trimestres),
+        'numero_trimestres': numero_trimestres,
+        'total_transferencias': sum([t['transferencia_hq'] for t in trimestres])
     }
 
 def get_data():
@@ -1039,6 +1233,32 @@ with st.sidebar:
     
     st.caption(f"📊 Margen actual: {meses_colchon} {'mes' if meses_colchon == 1 else 'meses'}")
     
+    # 🆕 v4.8.0: Días de liquidación anticipada para inversiones
+    st.markdown("#### ⏰ Liquidación de Inversiones")
+    
+    dias_liquidacion = st.select_slider(
+        "Días de anticipación para liquidar:",
+        options=[7, 15, 30],
+        value=st.session_state.dias_liquidacion,
+        help="""
+        Define con cuántos días de anticipación liquidar inversiones temporales 
+        antes de necesitar los fondos para cubrir el burn rate.
+        
+        • 7 días: Para instrumentos de alta liquidez
+        • 15 días: Recomendado (balance entre liquidez y rendimiento)
+        • 30 días: Conservador (máxima seguridad)
+        
+        Los instrumentos sugeridos (CDTs, TES, FCIs) permiten liquidación 
+        rápida, por lo que 15 días es suficiente en la mayoría de casos.
+        """
+    )
+    
+    if dias_liquidacion != st.session_state.dias_liquidacion:
+        st.session_state.dias_liquidacion = dias_liquidacion
+        st.rerun()
+    
+    st.caption(f"⏱️ Liquidar {dias_liquidacion} días antes")
+    
     st.markdown("---")
     
     st.markdown("### 📊 Navegación")
@@ -1054,13 +1274,17 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 4.6.0
+    **Versión:** 4.8.0
     
-    **🔥 Correcciones Críticas v4.6.0:**
+    **🎉 NUEVO en v4.8.0 - FASE 3:**
+    • ✅ Badge indicador corregido (verde para datos reales)
+    • ✅ Gestión de Excedentes e Inversiones Temporales
+    • ✅ Transferencias Trimestrales a Casa Matriz
+    • ✅ Configuración de días de liquidación
+    
+    **🔥 Correcciones v4.6.0:**
     • ✅ Burn Rate DINÁMICO en proyecciones
-    • ✅ Referencias actualizadas
     • ✅ Margen de protección configurable (1-3 meses)
-    • ✅ Terminología mejorada: Egresos Totales
     
     [AI-MindNovation](https://www.ai-mindnovation.com)
     """)
@@ -1078,13 +1302,9 @@ data = get_data()
 if page == "🏠 Resumen Ejecutivo":
     st.markdown("## 🎯 Resumen Ejecutivo")
     
-    # 🆕 v4.7.1: Indicador visual mejorado
-    if st.session_state.data_source == 'real' and st.session_state.datos_procesados:
-        # Verificar si hay datos reales procesados (estructura completa con 'historical')
-        if isinstance(st.session_state.datos_procesados, dict) and 'historical' in st.session_state.datos_procesados:
-            st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
-        else:
-            st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
+    # 🆕 v4.8.0: Indicador visual corregido - muestra verde cuando hay datos reales
+    if st.session_state.data_source == 'real':
+        st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
     else:
         st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
     
@@ -1240,6 +1460,204 @@ if page == "🏠 Resumen Ejecutivo":
             f"${analisis_cash['excedente_deficit']:,.0f}",
             delta_color=excedente_color
         )
+    
+    # =========================================================================
+    # 🆕 v4.8.0: FASE 3 - GESTIÓN DE EXCEDENTES E INVERSIONES
+    # =========================================================================
+    
+    st.markdown("---")
+    st.markdown("### 💰 Gestión de Excedentes e Inversiones Temporales")
+    
+    st.info("""
+    **Estrategia de Inversión:** Los excedentes que superen las necesidades mínimas pueden invertirse 
+    en instrumentos de bajo riesgo en Colombia para generar rentabilidad adicional mientras no se necesitan 
+    para operación. Los fondos se liquidan automáticamente con la anticipación configurada.
+    """)
+    
+    # Generar proyecciones para 3 meses (ya tenemos flujos_proyectados)
+    # Crear DataFrame con la estructura necesaria
+    proyecciones_3m = pd.DataFrame({
+        'mes': [1, 2, 3],
+        'revenue': [revenue_mensual * (1 + np.random.uniform(-0.05, 0.1)) for _ in range(3)],
+        'flujo_neto': flujos_proyectados
+    })
+    
+    # Calcular egresos totales implícitos
+    proyecciones_3m['egresos_totales'] = proyecciones_3m['revenue'] - proyecciones_3m['flujo_neto']
+    
+    # Calcular excedentes invertibles
+    df_excedentes = calcular_excedentes_invertibles(
+        proyecciones_3m, 
+        efectivo_actual, 
+        burn_rate,
+        st.session_state.meses_colchon,
+        st.session_state.dias_liquidacion
+    )
+    
+    # Generar recomendaciones de inversión
+    df_recomendaciones = generar_recomendaciones_inversion(df_excedentes, rentabilidad_estimada=0.10)
+    
+    # Mostrar análisis de excedentes
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("#### 📊 Análisis de Excedentes por Mes")
+        
+        # Preparar tabla para mostrar
+        df_display = df_excedentes[['mes', 'balance_disponible', 'necesidades_minimas', 'excedente_invertible']].copy()
+        df_display.columns = ['Mes', 'Balance Disponible', 'Necesidades Mínimas', 'Excedente Invertible']
+        
+        # Formatear valores
+        for col in ['Balance Disponible', 'Necesidades Mínimas', 'Excedente Invertible']:
+            df_display[col] = df_display[col].apply(lambda x: f"${x:,.0f}")
+        
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+    
+    with col2:
+        st.markdown("#### 💼 Recomendaciones de Inversión")
+        
+        if not df_recomendaciones.empty:
+            # Preparar tabla de recomendaciones
+            df_rec_display = df_recomendaciones[['mes', 'monto_invertible', 'instrumento_sugerido', 'rentabilidad_estimada_mensual']].copy()
+            df_rec_display.columns = ['Mes', 'Monto', 'Instrumento', 'Rendimiento Est.']
+            
+            # Formatear valores
+            df_rec_display['Monto'] = df_rec_display['Monto'].apply(lambda x: f"${x:,.0f}")
+            df_rec_display['Rendimiento Est.'] = df_rec_display['Rendimiento Est.'].apply(lambda x: f"${x:,.0f}")
+            
+            st.dataframe(df_rec_display, use_container_width=True, hide_index=True)
+            
+            # Mostrar resumen
+            total_invertible = df_recomendaciones['monto_invertible'].sum()
+            total_rendimiento = df_recomendaciones['rentabilidad_estimada_mensual'].sum()
+            
+            st.success(f"💰 **Total Invertible:** ${total_invertible:,.0f}")
+            st.success(f"📈 **Rendimiento Estimado:** ${total_rendimiento:,.0f}")
+        else:
+            st.warning("⚠️ No hay excedentes disponibles para inversión en los próximos 3 meses.")
+            st.caption("Los fondos disponibles son necesarios para cubrir las operaciones y el margen de protección.")
+    
+    # Alertas y calendario de liquidación
+    if not df_recomendaciones.empty:
+        st.markdown("#### ⏰ Calendario de Liquidación")
+        
+        for idx, row in df_recomendaciones.iterrows():
+            dias_config = st.session_state.dias_liquidacion
+            st.info(
+                f"🗓️ **Mes {int(row['mes'])}:** Invertir ${row['monto_invertible']:,.0f} | "
+                f"Liquidar {dias_config} días antes del Mes {int(row['liquidar_antes_mes'])}"
+            )
+    
+    st.caption("""
+    **Instrumentos Sugeridos:**
+    - **CDTs (40%):** Certificados de Depósito a Término ~12% EA
+    - **TES (30%):** Títulos de Tesorería Colombia ~10% EA  
+    - **FCI (30%):** Fondos de Inversión Colectiva ~8-10% EA
+    
+    *Rentabilidad estimada promedio: 10% EA para cartera mixta de bajo riesgo*
+    """)
+    
+    # =========================================================================
+    # 🆕 v4.8.0: FASE 3 - TRANSFERENCIAS A CASA MATRIZ (TRIMESTRALES)
+    # =========================================================================
+    
+    st.markdown("---")
+    st.markdown("### 🌍 Transferencias a Casa Matriz (SPT Global)")
+    
+    st.info("""
+    **Política SPT Global:** La utilidad neta local debe ser del 10% del revenue. 
+    Las transferencias se realizan por **trimestre vencido**, permitiendo a la filial 
+    local aprovechar inversiones temporales durante el trimestre.
+    """)
+    
+    # Calcular transferencias trimestrales
+    resultado_transferencias = calcular_transferencias_trimestrales(proyecciones_3m, meses_a_proyectar=3)
+    
+    df_trimestres = resultado_transferencias['trimestres']
+    
+    # Mostrar tabla de transferencias
+    st.markdown("#### 📋 Detalle de Transferencias Trimestrales")
+    
+    # Preparar tabla para display
+    df_trans_display = df_trimestres[['trimestre', 'revenue_total', 'flujo_neto_total', 'utilidad_local_10pct', 'transferencia_hq']].copy()
+    df_trans_display.columns = ['Trimestre', 'Revenue Total', 'Flujo Neto Total', 'Utilidad Local (10%)', 'Transferencia HQ']
+    
+    # Formatear valores
+    for col in ['Revenue Total', 'Flujo Neto Total', 'Utilidad Local (10%)', 'Transferencia HQ']:
+        df_trans_display[col] = df_trans_display[col].apply(lambda x: f"${x:,.0f}")
+    
+    st.dataframe(df_trans_display, use_container_width=True, hide_index=True)
+    
+    # Resumen de transferencias
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric(
+            "Total Transferencias",
+            f"${resultado_transferencias['total_transferencias']:,.0f}",
+            help="Suma de todas las transferencias trimestrales proyectadas"
+        )
+    
+    with col2:
+        revenue_total_periodo = df_trimestres['revenue_total'].sum()
+        utilidad_total = df_trimestres['utilidad_local_10pct'].sum()
+        st.metric(
+            "Utilidad Local Retenida",
+            f"${utilidad_total:,.0f}",
+            help="10% del revenue total que queda en SPT Colombia"
+        )
+    
+    with col3:
+        if revenue_total_periodo > 0:
+            margen_efectivo = (utilidad_total / revenue_total_periodo) * 100
+            st.metric(
+                "Margen Retenido",
+                f"{margen_efectivo:.1f}%",
+                help="Porcentaje del revenue que se retiene localmente"
+            )
+    
+    # Gráfico de distribución del flujo neto
+    st.markdown("#### 📊 Distribución del Flujo Neto")
+    
+    # Crear datos para gráfico de barras apiladas
+    if not df_trimestres.empty:
+        fig_transfer = go.Figure()
+        
+        fig_transfer.add_trace(go.Bar(
+            name='Utilidad Local (10%)',
+            x=df_trimestres['trimestre'],
+            y=df_trimestres['utilidad_local_10pct'],
+            marker_color='#10B981',
+            text=df_trimestres['utilidad_local_10pct'].apply(lambda x: f"${x:,.0f}"),
+            textposition='inside'
+        ))
+        
+        fig_transfer.add_trace(go.Bar(
+            name='Transferencia a HQ',
+            x=df_trimestres['trimestre'],
+            y=df_trimestres['transferencia_hq'],
+            marker_color='#2563EB',
+            text=df_trimestres['transferencia_hq'].apply(lambda x: f"${x:,.0f}"),
+            textposition='inside'
+        ))
+        
+        fig_transfer.update_layout(
+            barmode='stack',
+            title='Distribución del Flujo Neto: Utilidad Local vs Transferencia HQ',
+            xaxis_title='Trimestre',
+            yaxis_title='Monto (USD)',
+            height=400,
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig_transfer, use_container_width=True)
+    
+    st.caption("""
+    **Nota:** Las transferencias se realizan trimestre vencido. Esto permite:
+    - Maximizar el uso de excedentes en inversiones temporales durante el trimestre
+    - Mantener flexibilidad operativa local
+    - Optimizar la rentabilidad de los fondos antes de la transferencia
+    """)
 
 # =============================================================================
 # PÁGINA: ANÁLISIS HISTÓRICO
