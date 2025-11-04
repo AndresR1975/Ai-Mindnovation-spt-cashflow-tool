@@ -1,7 +1,46 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.1
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.2
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🔧 MEJORAS v4.9.2 (Noviembre 4, 2025):
+=======================================
+✅ CORRECCIÓN CRÍTICA - COTIZACIONES CON EQUIPOS DINÁMICOS:
+
+  1. PROBLEMA RESUELTO: Múltiples equipos diferentes
+     - Antes: Cambiar "Número de equipos" no generaba formularios
+     - Ahora: Botones dinámicos "Agregar Equipo" fuera del form
+     - Cada equipo se agrega individualmente con botón
+     - Lista de equipos se mantiene y visualiza en el form
+  
+  2. CANTIDAD POR EQUIPO:
+     - Campo "Cantidad" agregado (1-50 unidades)
+     - Tarifa unitaria mensual
+     - Subtotal automático: cantidad × tarifa_unitaria
+     - Permite: 2 x Telehandler + 3 x Scissor Lift en misma cotización
+  
+  3. CLIENTES DESDE DATOS HISTÓRICOS:
+     - Carga clientes del top_clients de datos históricos
+     - Agrega clientes de cotizaciones/contratos manuales
+     - Selectbox con lista completa + "Nuevo cliente..."
+  
+  4. UX MEJORADA:
+     - Equipos se agregan fuera del form (más intuitivo)
+     - Visualización de equipos agregados dentro del form
+     - Botón "Limpiar Equipos" para resetear
+     - Botón "Limpiar Form" para empezar de nuevo
+  
+  5. VISUALIZACIÓN MEJORADA:
+     - Cotizaciones guardadas muestran equipos con cantidad
+     - Formato: "2 x Telehandler - $3,000 c/u = $6,000"
+     - Compatibilidad con formato anterior
+  
+  ⚠️ PENDIENTE v4.9.3:
+  - Aplicar mismo approach para CONTRATOS con cantidad
+  - Cargar equipos Available/StandBy del Weekly Report
+  - Estado "Reservado" para equipos asignados
+  
+  Ubicación: Menú "📝 Ingreso Manual" → Tab Cotizaciones
 
 🔧 MEJORAS v4.9.1 (Noviembre 4, 2025):
 =======================================
@@ -1588,7 +1627,13 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 4.9.1
+    **Versión:** 4.9.2
+    
+    **🔧 NUEVO en v4.9.2 - EQUIPOS DINÁMICOS:**
+    • ✅ Múltiples equipos diferentes en cotizaciones
+    • ✅ Campo "Cantidad" por cada tipo de equipo
+    • ✅ Botones "Agregar Equipo" dinámicos
+    • ✅ Clientes cargados desde datos históricos
     
     **🎉 NUEVO en v4.9.0 - FASE 4:**
     • ✅ Ingreso Manual de Cotizaciones y Contratos
@@ -2630,6 +2675,22 @@ elif page == "📝 Ingreso Manual":
     with tab1:
         st.markdown("### 📋 Ingresar Nueva Cotización")
         
+        # Variables de estado para equipos de cotización
+        if 'equipos_temp_quote' not in st.session_state:
+            st.session_state.equipos_temp_quote = []
+        
+        # Tipos de equipos comunes en SPT
+        tipos_equipos = [
+            "Telehandler",
+            "Scissor Lift",
+            "Boom Lift",
+            "Forklift",
+            "Aerial Platform",
+            "Material Lift",
+            "Personnel Lift",
+            "Otro"
+        ]
+        
         with st.form("form_cotizacion"):
             col1, col2 = st.columns(2)
             
@@ -2641,12 +2702,21 @@ elif page == "📝 Ingreso Manual":
                 )
                 
                 # Cliente con selectbox + opción nuevo
-                clientes_existentes = ["Nuevo cliente..."] + sorted(list(set([q['cliente'] for q in st.session_state.cotizaciones_manuales] + 
-                                                                             [c['cliente'] for c in st.session_state.contratos_manuales])))
+                # Obtener clientes de datos procesados
+                data = get_data()
+                clientes_historicos = []
+                if 'top_clients' in data.get('historical', {}):
+                    clientes_historicos = [c['cliente'] for c in data['historical']['top_clients']]
+                
+                # Agregar clientes de cotizaciones y contratos manuales
+                clientes_manuales = list(set([q['cliente'] for q in st.session_state.cotizaciones_manuales] + 
+                                             [c['cliente'] for c in st.session_state.contratos_manuales]))
+                
+                todos_clientes = ["Nuevo cliente..."] + sorted(list(set(clientes_historicos + clientes_manuales)))
                 
                 cliente_seleccion = st.selectbox(
                     "Cliente",
-                    options=clientes_existentes,
+                    options=todos_clientes,
                     help="Selecciona un cliente existente o ingresa uno nuevo"
                 )
                 
@@ -2696,59 +2766,18 @@ elif page == "📝 Ingreso Manual":
                 )
             
             st.markdown("#### Equipos Requeridos")
-            st.caption("💡 La tarifa mensual total se calculará automáticamente según los equipos seleccionados")
+            st.caption("💡 Usa los botones abajo para agregar/eliminar equipos")
             
-            # Tipos de equipos comunes en SPT
-            tipos_equipos = [
-                "Telehandler",
-                "Scissor Lift",
-                "Boom Lift",
-                "Forklift",
-                "Aerial Platform",
-                "Material Lift",
-                "Personnel Lift",
-                "Otro"
-            ]
-            
-            num_equipos = st.number_input(
-                "Número de Equipos",
-                min_value=1,
-                max_value=20,
-                value=1,
-                help="Cantidad de equipos incluidos en la cotización"
-            )
-            
-            equipos_cotizacion = []
-            for i in range(int(num_equipos)):
-                with st.expander(f"Equipo {i+1}", expanded=(i==0)):
-                    tipo_equipo = st.selectbox(
-                        "Tipo de Equipo",
-                        options=tipos_equipos,
-                        key=f"quote_eq_type_{i}",
-                        help="Selecciona el tipo de equipo a cotizar"
-                    )
-                    
-                    if tipo_equipo == "Otro":
-                        tipo_equipo_custom = st.text_input(
-                            "Especificar tipo de equipo",
-                            key=f"quote_eq_type_custom_{i}",
-                            placeholder="Ej: Mobile Crane"
-                        )
-                        tipo_equipo = tipo_equipo_custom if tipo_equipo_custom else "Otro"
-                    
-                    tarifa_equipo = st.number_input(
-                        "Tarifa Mensual (USD)",
-                        key=f"quote_eq_rate_{i}",
-                        min_value=0.0,
-                        value=0.0,
-                        step=100.0,
-                        help="Tarifa mensual estimada para este equipo"
-                    )
-                    
-                    equipos_cotizacion.append({
-                        'tipo': tipo_equipo,
-                        'tarifa_mensual': tarifa_equipo
-                    })
+            # Mostrar equipos actuales en el form
+            if st.session_state.equipos_temp_quote:
+                for idx, eq in enumerate(st.session_state.equipos_temp_quote):
+                    with st.expander(f"✅ Equipo {idx+1}: {eq['tipo']} (Cant: {eq['cantidad']})"):
+                        st.write(f"**Tipo:** {eq['tipo']}")
+                        st.write(f"**Cantidad:** {eq['cantidad']} unidad(es)")
+                        st.write(f"**Tarifa mensual c/u:** ${eq['tarifa_unitaria']:,.0f}")
+                        st.write(f"**Subtotal:** ${eq['tarifa_unitaria'] * eq['cantidad']:,.0f}")
+            else:
+                st.info("👆 Usa el botón 'Agregar Equipo' abajo para incluir equipos en esta cotización")
             
             st.markdown("#### Notas Adicionales")
             notas = st.text_area(
@@ -2758,19 +2787,26 @@ elif page == "📝 Ingreso Manual":
             )
             
             # Botón de envío
-            submitted_quote = st.form_submit_button("💾 Guardar Cotización", use_container_width=True)
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                submitted_quote = st.form_submit_button("💾 Guardar Cotización", use_container_width=True, type="primary")
+            with col_btn2:
+                limpiar_form = st.form_submit_button("🗑️ Limpiar Form", use_container_width=True)
+            
+            if limpiar_form:
+                st.session_state.equipos_temp_quote = []
+                st.rerun()
             
             if submitted_quote:
                 if not quote_id or not cliente:
                     st.error("⚠️ Por favor completa los campos obligatorios: ID de Cotización y Cliente")
                 elif cliente == "Nuevo cliente...":
                     st.error("⚠️ Por favor ingresa el nombre del nuevo cliente")
+                elif len(st.session_state.equipos_temp_quote) == 0:
+                    st.error("⚠️ Agrega al menos un equipo a la cotización")
                 else:
-                    # Calcular tarifa mensual total de los equipos
-                    tarifa_mensual = sum(eq['tarifa_mensual'] for eq in equipos_cotizacion)
-                    
-                    if tarifa_mensual == 0:
-                        st.warning("⚠️ Advertencia: La tarifa mensual total es $0. Verifica las tarifas de los equipos.")
+                    # Calcular tarifa mensual total
+                    tarifa_mensual = sum(eq['tarifa_unitaria'] * eq['cantidad'] for eq in st.session_state.equipos_temp_quote)
                     
                     # Calcular revenue ponderado
                     revenue_ponderado = tarifa_mensual * duracion_meses * (probabilidad_cierre / 100.0)
@@ -2786,7 +2822,7 @@ elif page == "📝 Ingreso Manual":
                         'duracion_meses': duracion_meses,
                         'tarifa_mensual': tarifa_mensual,
                         'revenue_ponderado': revenue_ponderado,
-                        'equipos': equipos_cotizacion,
+                        'equipos': st.session_state.equipos_temp_quote.copy(),
                         'notas': notas,
                         'fecha_ingreso': datetime.now().isoformat()
                     }
@@ -2794,10 +2830,72 @@ elif page == "📝 Ingreso Manual":
                     # Guardar en session_state
                     st.session_state.cotizaciones_manuales.append(nueva_cotizacion)
                     
+                    # Limpiar equipos temporales
+                    st.session_state.equipos_temp_quote = []
+                    
                     st.success(f"✅ Cotización {quote_id} guardada exitosamente!")
                     st.success(f"💰 Tarifa mensual total: ${tarifa_mensual:,.0f} USD")
                     st.success(f"📊 Revenue ponderado: ${revenue_ponderado:,.0f} USD")
                     st.rerun()
+        
+        # FUERA del form: Agregar equipos
+        st.markdown("---")
+        st.markdown("#### ➕ Agregar Equipos a la Cotización")
+        
+        col_eq1, col_eq2, col_eq3 = st.columns(3)
+        
+        with col_eq1:
+            nuevo_tipo = st.selectbox(
+                "Tipo de Equipo",
+                options=tipos_equipos,
+                key="nuevo_tipo_quote"
+            )
+            
+            if nuevo_tipo == "Otro":
+                nuevo_tipo = st.text_input(
+                    "Especificar tipo",
+                    key="nuevo_tipo_custom_quote",
+                    placeholder="Ej: Mobile Crane"
+                )
+        
+        with col_eq2:
+            nueva_cantidad = st.number_input(
+                "Cantidad",
+                min_value=1,
+                max_value=50,
+                value=1,
+                key="nueva_cantidad_quote",
+                help="Número de unidades de este tipo"
+            )
+        
+        with col_eq3:
+            nueva_tarifa = st.number_input(
+                "Tarifa Unitaria Mensual (USD)",
+                min_value=0.0,
+                value=0.0,
+                step=100.0,
+                key="nueva_tarifa_quote",
+                help="Tarifa mensual por unidad"
+            )
+        
+        col_btn_eq1, col_btn_eq2 = st.columns([3, 1])
+        with col_btn_eq1:
+            if st.button("➕ Agregar Equipo a Cotización", use_container_width=True, type="primary"):
+                if nuevo_tipo and nueva_tarifa > 0:
+                    st.session_state.equipos_temp_quote.append({
+                        'tipo': nuevo_tipo,
+                        'cantidad': nueva_cantidad,
+                        'tarifa_unitaria': nueva_tarifa
+                    })
+                    st.success(f"✅ {nueva_cantidad} x {nuevo_tipo} agregado(s)")
+                    st.rerun()
+                else:
+                    st.error("⚠️ Completa todos los campos del equipo")
+        
+        with col_btn_eq2:
+            if st.button("🗑️ Limpiar Equipos", use_container_width=True):
+                st.session_state.equipos_temp_quote = []
+                st.rerun()
         
         # Mostrar cotizaciones existentes
         if st.session_state.cotizaciones_manuales:
@@ -2816,6 +2914,17 @@ elif page == "📝 Ingreso Manual":
                     
                     st.caption(f"Válida hasta: {quote['fecha_valida_hasta']}")
                     st.caption(f"Inicio estimado: {quote['fecha_inicio_estimada']}")
+                    
+                    # Mostrar equipos
+                    if 'equipos' in quote and quote['equipos']:
+                        st.markdown("**Equipos:**")
+                        for eq in quote['equipos']:
+                            # Compatibilidad con formato antiguo y nuevo
+                            if 'cantidad' in eq:
+                                st.write(f"• {eq['cantidad']} x {eq['tipo']} - ${eq['tarifa_unitaria']:,.0f} c/u = ${eq['tarifa_unitaria'] * eq['cantidad']:,.0f}")
+                            else:
+                                # Formato antiguo
+                                st.write(f"• {eq['tipo']} - ${eq.get('tarifa_mensual', 0):,.0f}")
                     
                     if st.button(f"🗑️ Eliminar", key=f"del_quote_{idx}"):
                         st.session_state.cotizaciones_manuales.pop(idx)
