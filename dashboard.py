@@ -1,7 +1,26 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.3.1
-==================================================
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.3.1 (Bugfix)
+===========================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🐛 BUGFIX v4.9.3.1b (Noviembre 4, 2025):
+=========================================
+✅ ERROR CORREGIDO: StreamlitDuplicateElementId
+
+  PROBLEMA: Botones con keys duplicadas en Cotizaciones y Contratos
+  - ❌ "Limpiar Equipos" aparecía en ambos tabs sin key única
+  - ❌ "Agregar Equipo" sin keys únicas
+  - ❌ "Limpiar Form" sin keys únicas en forms
+  
+  SOLUCIÓN: Keys únicas agregadas a todos los botones
+  - ✅ btn_agregar_equipo_quote / btn_agregar_equipo_contract
+  - ✅ btn_limpiar_equipos_quote / btn_limpiar_equipos_contract
+  - ✅ form_limpiar_quote / form_limpiar_contract
+  
+  RESULTADO:
+  - Error completamente resuelto
+  - 6 botones corregidos
+  - Funcionalidad preservada al 100%
 
 🔧 CORRECCIONES v4.9.3.1 (Noviembre 4, 2025):
 ==============================================
@@ -3029,7 +3048,7 @@ elif page == "📝 Ingreso Manual":
             with col_btn1:
                 submitted_quote = st.form_submit_button("💾 Guardar Cotización", use_container_width=True, type="primary")
             with col_btn2:
-                limpiar_form = st.form_submit_button("🗑️ Limpiar Form", use_container_width=True)
+                limpiar_form = st.form_submit_button("🗑️ Limpiar Form", use_container_width=True, key="form_limpiar_quote")
             
             if limpiar_form:
                 st.session_state.equipos_temp_quote = []
@@ -3118,7 +3137,7 @@ elif page == "📝 Ingreso Manual":
         
         col_btn_eq1, col_btn_eq2 = st.columns([3, 1])
         with col_btn_eq1:
-            if st.button("➕ Agregar Equipo a Cotización", use_container_width=True, type="primary"):
+            if st.button("➕ Agregar Equipo a Cotización", use_container_width=True, type="primary", key="btn_agregar_equipo_quote"):
                 if nuevo_tipo and nueva_tarifa > 0:
                     st.session_state.equipos_temp_quote.append({
                         'tipo': nuevo_tipo,
@@ -3131,7 +3150,7 @@ elif page == "📝 Ingreso Manual":
                     st.error("⚠️ Completa todos los campos del equipo")
         
         with col_btn_eq2:
-            if st.button("🗑️ Limpiar Equipos", use_container_width=True):
+            if st.button("🗑️ Limpiar Equipos", use_container_width=True, key="btn_limpiar_equipos_quote"):
                 st.session_state.equipos_temp_quote = []
                 st.rerun()
         
@@ -3286,7 +3305,7 @@ elif page == "📝 Ingreso Manual":
             with col_btn1:
                 submitted_contract = st.form_submit_button("💾 Guardar Contrato", use_container_width=True, type="primary")
             with col_btn2:
-                limpiar_form_contract = st.form_submit_button("🗑️ Limpiar Form", use_container_width=True)
+                limpiar_form_contract = st.form_submit_button("🗑️ Limpiar Form", use_container_width=True, key="form_limpiar_contract")
             
             if limpiar_form_contract:
                 st.session_state.equipos_temp_contract = []
@@ -3390,7 +3409,7 @@ elif page == "📝 Ingreso Manual":
         
         col_btn_eq1, col_btn_eq2 = st.columns([3, 1])
         with col_btn_eq1:
-            if st.button("➕ Agregar Equipo al Contrato", use_container_width=True, type="primary"):
+            if st.button("➕ Agregar Equipo al Contrato", use_container_width=True, type="primary", key="btn_agregar_equipo_contract"):
                 if equipo_seleccionado and ubicacion_equipo and tarifa_equipo > 0:
                     st.session_state.equipos_temp_contract.append({
                         'serial': equipo_seleccionado['serial'],
@@ -3410,7 +3429,7 @@ elif page == "📝 Ingreso Manual":
                     st.error("⚠️ La tarifa debe ser mayor a $0")
         
         with col_btn_eq2:
-            if st.button("🗑️ Limpiar Equipos", use_container_width=True):
+            if st.button("🗑️ Limpiar Equipos", use_container_width=True, key="btn_limpiar_equipos_contract"):
                 st.session_state.equipos_temp_contract = []
                 st.rerun()
         
