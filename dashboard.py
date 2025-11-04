@@ -1803,108 +1803,106 @@ with st.sidebar:
     if not st.session_state.get("datos_procesados"):
         st.info("💡 **Dashboard en blanco** - Todas las métricas en $0 hasta que cargue archivos")
     
-    )
     
     # v5.1.0: Siempre en modo carga de archivos
     st.session_state.data_source = "real"  # Será real después de procesar
-        st.session_state.data_source = 'upload'
+    
+    st.markdown("#### 📁 Subir Archivos Excel")
+    st.info("💡 Suba los 5 archivos requeridos para el análisis completo")
+    
+    st.markdown("**Históricos (2023-2025):**")
+    file_2023 = st.file_uploader(
+        "Utilization Report 2023",
+        type=['xlsx', 'xls'],
+        key="file_2023",
+        help="Archivo: Utilization_Report_2023.xlsx"
+    )
+    
+    file_2024 = st.file_uploader(
+        "Utilization Report 2024",
+        type=['xlsx', 'xls'],
+        key="file_2024",
+        help="Archivo: Utilization_Report_2024.xlsx"
+    )
+    
+    file_2025 = st.file_uploader(
+        "Utilization Report 2025",
+        type=['xlsx', 'xls'],
+        key="file_2025",
+        help="Archivo: Utilization_Report_2025.xlsx"
+    )
+    
+    st.markdown("**Estado Actual:**")
+    file_weekly = st.file_uploader(
+        "Weekly Operation Report",
+        type=['xlsx', 'xls'],
+        key="file_weekly",
+        help="Archivo: Weekly_Operation_Report.xlsx"
+    )
+    
+    st.markdown("**Financiero:**")
+    file_financial = st.file_uploader(
+        "Estado Financiero",
+        type=['xlsx', 'xls'],
+        key="file_financial",
+        help="Archivo: Informe_financiero.xlsx"
+    )
+    
+    all_files = all([file_2023, file_2024, file_2025, file_weekly, file_financial])
+    
+    if all_files:
+        st.success("✅ Todos los archivos cargados")
         
-        st.markdown("#### 📁 Subir Archivos Excel")
-        st.info("💡 Suba los 5 archivos requeridos para el análisis completo")
-        
-        st.markdown("**Históricos (2023-2025):**")
-        file_2023 = st.file_uploader(
-            "Utilization Report 2023",
-            type=['xlsx', 'xls'],
-            key="file_2023",
-            help="Archivo: Utilization_Report_2023.xlsx"
-        )
-        
-        file_2024 = st.file_uploader(
-            "Utilization Report 2024",
-            type=['xlsx', 'xls'],
-            key="file_2024",
-            help="Archivo: Utilization_Report_2024.xlsx"
-        )
-        
-        file_2025 = st.file_uploader(
-            "Utilization Report 2025",
-            type=['xlsx', 'xls'],
-            key="file_2025",
-            help="Archivo: Utilization_Report_2025.xlsx"
-        )
-        
-        st.markdown("**Estado Actual:**")
-        file_weekly = st.file_uploader(
-            "Weekly Operation Report",
-            type=['xlsx', 'xls'],
-            key="file_weekly",
-            help="Archivo: Weekly_Operation_Report.xlsx"
-        )
-        
-        st.markdown("**Financiero:**")
-        file_financial = st.file_uploader(
-            "Estado Financiero",
-            type=['xlsx', 'xls'],
-            key="file_financial",
-            help="Archivo: Informe_financiero.xlsx"
-        )
-        
-        all_files = all([file_2023, file_2024, file_2025, file_weekly, file_financial])
-        
-        if all_files:
-            st.success("✅ Todos los archivos cargados")
-            
-            if st.button("🚀 Procesar Datos", use_container_width=True, type="primary"):
-                with st.spinner("⚙️ Procesando archivos Excel..."):
+        if st.button("🚀 Procesar Datos", use_container_width=True, type="primary"):
+            with st.spinner("⚙️ Procesando archivos Excel..."):
                     # 🆕 v4.7.0: PROCESAMIENTO REAL DE ARCHIVOS
-                    try:
+                try:
                         # Preparar diccionario con archivos
-                        files_dict = {
-                            'file_2023': file_2023,
-                            'file_2024': file_2024,
-                            'file_2025': file_2025,
-                            'file_weekly': file_weekly,
-                            'file_financial': file_financial
-                        }
-                        
+                    files_dict = {
+                        'file_2023': file_2023,
+                        'file_2024': file_2024,
+                        'file_2025': file_2025,
+                        'file_weekly': file_weekly,
+                        'file_financial': file_financial
+                    }
+                    
                         # ✅ v5.0: Preservar archivos en session_state para acceso global
-                        if 'uploaded_files' not in st.session_state:
-                            st.session_state.uploaded_files = {}
-                        
-                        st.session_state.uploaded_files['file_2023'] = file_2023
-                        st.session_state.uploaded_files['file_2024'] = file_2024
-                        st.session_state.uploaded_files['file_2025'] = file_2025
-                        st.session_state.uploaded_files['file_weekly'] = file_weekly
-                        st.session_state.uploaded_files['file_financial'] = file_financial
-                        
-                        print("✅ Archivos guardados en session_state.uploaded_files")
-                        
+                    if 'uploaded_files' not in st.session_state:
+                        st.session_state.uploaded_files = {}
+                    
+                    st.session_state.uploaded_files['file_2023'] = file_2023
+                    st.session_state.uploaded_files['file_2024'] = file_2024
+                    st.session_state.uploaded_files['file_2025'] = file_2025
+                    st.session_state.uploaded_files['file_weekly'] = file_weekly
+                    st.session_state.uploaded_files['file_financial'] = file_financial
+                    
+                    print("✅ Archivos guardados en session_state.uploaded_files")
+                    
                         # Procesar archivos y extraer datos
-                        st.info("📊 Extrayendo datos de Utilization Reports...")
-                        datos_reales = procesar_archivos_reales(files_dict)
-                        
-                        if datos_reales:
+                    st.info("📊 Extrayendo datos de Utilization Reports...")
+                    datos_reales = procesar_archivos_reales(files_dict)
+                    
+                    if datos_reales:
                             # Guardar datos procesados
-                            st.session_state.data_source = 'real'
-                            st.session_state.datos_procesados = datos_reales
-                            
-                            st.success("✅ Archivos procesados exitosamente")
-                            st.success(f"📈 Revenue promedio: ${datos_reales['historical']['revenue_promedio']:,.0f}")
-                            st.success(f"💰 Burn Rate: ${datos_reales['financial']['burn_rate']:,.0f}")
-                            st.info("🟢 Visualizando ahora DATOS REALES del archivo cargado")
-                            st.rerun()
-                        else:
-                            st.error("❌ Error al procesar archivos. Revise el formato de los archivos.")
+                        st.session_state.data_source = 'real'
+                        st.session_state.datos_procesados = datos_reales
+                        
+                        st.success("✅ Archivos procesados exitosamente")
+                        st.success(f"📈 Revenue promedio: ${datos_reales['historical']['revenue_promedio']:,.0f}")
+                        st.success(f"💰 Burn Rate: ${datos_reales['financial']['burn_rate']:,.0f}")
+                        st.info("🟢 Visualizando ahora DATOS REALES del archivo cargado")
+                        st.rerun()
+                    else:
+                        st.error("❌ Error al procesar archivos. Revise el formato de los archivos.")
                             # v5.1.0: Ya no hay modo demo - comentado
-                            
-                    except Exception as e:
-                        st.error(f"❌ Error durante el procesamiento: {str(e)}")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error durante el procesamiento: {str(e)}")
                         # v5.1.0: Ya no hay modo demo - comentado
-        else:
-            missing = []
-            if not file_2023: missing.append("Util 2023")
-            if not file_2024: missing.append("Util 2024")
+    else:
+        missing = []
+        if not file_2023: missing.append("Util 2023")
+        if not file_2024: missing.append("Util 2024")
             if not file_2025: missing.append("Util 2025")
             if not file_weekly: missing.append("Weekly")
             if not file_financial: missing.append("Financiero")
