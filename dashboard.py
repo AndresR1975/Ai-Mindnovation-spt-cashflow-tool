@@ -1,7 +1,27 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.7.0
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.7.1
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🎨 MEJORAS VISUALES v4.7.1 (Noviembre 3, 2025):
+================================================
+✅ FASE 2 - MEJORAS VISUALES COMPLETADAS:
+  
+  1. GRÁFICOS COMPARATIVOS MEJORADOS:
+     - Gráfico de barras comparando Revenue, Egresos y Flujo Neto por escenario
+     - Visualización clara de diferencias entre escenarios
+     - Valores mostrados en cada barra para fácil lectura
+  
+  2. TABLAS DE DATOS EXPORTABLES:
+     - Tabla comparativa de resumen de todos los escenarios
+     - Botón de descarga CSV para tabla comparativa
+     - Botones de descarga individuales por escenario
+  
+  3. INDICADOR VISUAL CORREGIDO:
+     - Indicador verde 🟢 cuando hay datos reales procesados
+     - Verificación correcta de estructura de datos
+  
+  Ubicación: Proyecciones Multi-Escenario → Pestaña "Comparación"
 
 🚀 NUEVO EN v4.7.0 (Noviembre 3, 2025):
 ========================================
@@ -1058,9 +1078,13 @@ data = get_data()
 if page == "🏠 Resumen Ejecutivo":
     st.markdown("## 🎯 Resumen Ejecutivo")
     
-    # 🆕 v4.6.0: Indicador visual de modo
+    # 🆕 v4.7.1: Indicador visual mejorado
     if st.session_state.data_source == 'real' and st.session_state.datos_procesados:
-        st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
+        # Verificar si hay datos reales procesados (estructura completa con 'historical')
+        if isinstance(st.session_state.datos_procesados, dict) and 'historical' in st.session_state.datos_procesados:
+            st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
+        else:
+            st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
     else:
         st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
     
@@ -1356,6 +1380,88 @@ elif page == "💵 Proyecciones":
         
         st.plotly_chart(fig, use_container_width=True)
         
+        # 🆕 v4.7.1: GRÁFICO COMPARATIVO DE BARRAS - Revenue y Egresos por Escenario
+        st.markdown("### 📊 Comparación Revenue vs Egresos por Escenario")
+        
+        # Preparar datos para gráfico comparativo
+        escenarios_list = list(proyecciones.keys())
+        
+        # Calcular promedios por escenario
+        revenue_por_escenario = [proyecciones[esc]['revenue'].mean() for esc in escenarios_list]
+        egresos_por_escenario = [proyecciones[esc]['egresos_totales'].mean() for esc in escenarios_list]
+        flujo_por_escenario = [proyecciones[esc]['flujo_neto'].mean() for esc in escenarios_list]
+        
+        # Crear gráfico de barras comparativo
+        fig_comp = go.Figure()
+        
+        fig_comp.add_trace(go.Bar(
+            name='Revenue Promedio',
+            x=escenarios_list,
+            y=revenue_por_escenario,
+            marker_color='#3B82F6',
+            text=[f"${v:,.0f}" for v in revenue_por_escenario],
+            textposition='outside'
+        ))
+        
+        fig_comp.add_trace(go.Bar(
+            name='Egresos Totales Promedio',
+            x=escenarios_list,
+            y=egresos_por_escenario,
+            marker_color='#EF4444',
+            text=[f"${v:,.0f}" for v in egresos_por_escenario],
+            textposition='outside'
+        ))
+        
+        fig_comp.add_trace(go.Bar(
+            name='Flujo Neto Promedio',
+            x=escenarios_list,
+            y=flujo_por_escenario,
+            marker_color='#10B981',
+            text=[f"${v:,.0f}" for v in flujo_por_escenario],
+            textposition='outside'
+        ))
+        
+        fig_comp.update_layout(
+            barmode='group',
+            height=400,
+            xaxis_title='Escenario',
+            yaxis_title='USD',
+            yaxis=dict(tickformat='$,.0f'),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig_comp, use_container_width=True)
+        
+        # 🆕 v4.7.1: TABLA COMPARATIVA DE RESUMEN
+        st.markdown("### 📋 Tabla Comparativa de Escenarios")
+        
+        # Crear DataFrame de resumen
+        datos_comparacion = []
+        for escenario in escenarios_list:
+            df_esc = proyecciones[escenario]
+            datos_comparacion.append({
+                'Escenario': escenario,
+                'Revenue Promedio': f"${df_esc['revenue'].mean():,.0f}",
+                'Revenue Mínimo': f"${df_esc['revenue'].min():,.0f}",
+                'Revenue Máximo': f"${df_esc['revenue'].max():,.0f}",
+                'Egresos Promedio': f"${df_esc['egresos_totales'].mean():,.0f}",
+                'Flujo Neto Promedio': f"${df_esc['flujo_neto'].mean():,.0f}",
+                'Flujo Neto Total': f"${df_esc['flujo_neto'].sum():,.0f}"
+            })
+        
+        df_comparacion = pd.DataFrame(datos_comparacion)
+        st.dataframe(df_comparacion, use_container_width=True, hide_index=True)
+        
+        # 🆕 v4.7.1: BOTÓN DE DESCARGA
+        csv = df_comparacion.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Descargar Comparación (CSV)",
+            data=csv,
+            file_name=f"comparacion_escenarios_{meses_proyeccion}meses.csv",
+            mime="text/csv"
+        )
+        
         st.info(f"""
         💡 **Interpretación (v4.6.0 - Burn Rate Dinámico):**
         - **Conservador (rojo):** Supone 15% menos revenue y crecimiento 1% mensual
@@ -1433,6 +1539,16 @@ elif page == "💵 Proyecciones":
             df_display['flujo_neto'] = df_display['flujo_neto'].apply(lambda x: f"${x:,.0f}")
             
             st.dataframe(df_display, use_container_width=True, hide_index=True)
+            
+            # 🆕 v4.7.1: Botón de descarga para cada escenario
+            csv_individual = df_display.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label=f"📥 Descargar {escenario} (CSV)",
+                data=csv_individual,
+                file_name=f"proyeccion_{escenario.lower()}_{meses_proyeccion}meses.csv",
+                mime="text/csv",
+                key=f"download_{escenario}"
+            )
 
 # =============================================================================
 # PÁGINA: REPORTES DETALLADOS
