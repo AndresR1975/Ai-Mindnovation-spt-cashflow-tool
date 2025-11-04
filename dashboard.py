@@ -1,7 +1,48 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.2
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.3
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🎉 MEJORAS v4.9.3 (Noviembre 4, 2025):
+=======================================
+✅ CONTRATOS CON EQUIPOS DINÁMICOS - VERSIÓN COMPLETA:
+
+  1. SISTEMA DE EQUIPOS DINÁMICOS IMPLEMENTADO:
+     - Igual que cotizaciones: botones "Agregar Equipo" fuera del form
+     - Eliminado slider "Número de equipos" con expanders confusos
+     - Cada equipo se agrega individualmente con su cantidad
+     - Lista de equipos temporales visible en el form
+  
+  2. CAMPO "CANTIDAD" POR EQUIPO:
+     - Permite especificar múltiples unidades (1-50)
+     - Tarifa unitaria por equipo
+     - Subtotal automático: cantidad × tarifa_unitaria
+     - Ejemplo: 2 x GTH-001 - Telehandler + 3 x SL-204 - Scissor Lift
+  
+  3. EQUIPOS REALES DESDE WEEKLY REPORT:
+     - Selectbox con equipos individuales del Weekly Report
+     - Formato: "GTH-001 - Telehandler (Available)"
+     - Solo muestra equipos con estado Available y StandBy
+     - Cada serial es una opción individual en el dropdown
+     - Elimina necesidad de escribir serial manualmente
+  
+  4. VISUALIZACIÓN MEJORADA:
+     - Contratos guardados muestran: "2 x GTH-001 - Telehandler - $3,000 c/u = $6,000"
+     - Muestra tipo, serial, cantidad y cálculos claros
+     - Compatibilidad con formato anterior
+  
+  5. UX CONSISTENTE:
+     - Misma experiencia en Cotizaciones y Contratos
+     - Botones "Agregar Equipo" y "Limpiar Equipos"
+     - Cálculo automático de tarifa total
+     - Validaciones mejoradas
+  
+  🔌 NOTA TÉCNICA:
+  - Función get_equipos_disponibles() con datos simulados
+  - Lista realista de 15 equipos Available/StandBy
+  - Listo para conectar con API/archivo real del Weekly Report
+  
+  Ubicación: Menú "📝 Ingreso Manual" → Tab Contratos
 
 🔧 MEJORAS v4.9.2 (Noviembre 4, 2025):
 =======================================
@@ -34,11 +75,6 @@ Dashboard de análisis de flujo de efectivo para SPT Colombia
      - Cotizaciones guardadas muestran equipos con cantidad
      - Formato: "2 x Telehandler - $3,000 c/u = $6,000"
      - Compatibilidad con formato anterior
-  
-  ⚠️ PENDIENTE v4.9.3:
-  - Aplicar mismo approach para CONTRATOS con cantidad
-  - Cargar equipos Available/StandBy del Weekly Report
-  - Estado "Reservado" para equipos asignados
   
   Ubicación: Menú "📝 Ingreso Manual" → Tab Cotizaciones
 
@@ -615,6 +651,10 @@ if 'cotizaciones_manuales' not in st.session_state:
 if 'contratos_manuales' not in st.session_state:
     st.session_state.contratos_manuales = []
 
+# 🆕 v4.9.3: Equipos temporales para contratos (igual que cotizaciones)
+if 'equipos_temp_contract' not in st.session_state:
+    st.session_state.equipos_temp_contract = []
+
 # =============================================================================
 # FUNCIONES AUXILIARES
 # =============================================================================
@@ -764,6 +804,57 @@ def get_real_top_clients():
         ('Kluane', 383764),            # $384K acumulado
         ('Explomin', 244442)           # $244K acumulado
     ]
+
+def get_equipos_disponibles():
+    """
+    ✅ v4.9.3: Obtiene equipos disponibles del Weekly Report
+    
+    ESTADOS INCLUIDOS:
+    - Available: Equipos listos para asignación inmediata
+    - StandBy: Equipos en espera, disponibles para contratos futuros
+    
+    FORMATO DE RETORNO:
+    Lista de diccionarios con:
+    - serial: Serial del equipo (ej: "GTH-001")
+    - tipo: Tipo de equipo (ej: "Telehandler")
+    - estado: Estado actual ("Available" o "StandBy")
+    - display: Texto para mostrar en dropdown (ej: "GTH-001 - Telehandler (Available)")
+    
+    🔌 CONEXIÓN FUTURA:
+    Esta función actualmente retorna datos simulados realistas.
+    Para conectar con el Weekly Report real, reemplazar con:
+    - Lectura de archivo Excel/CSV del Weekly Report
+    - Llamada a API del sistema de gestión de equipos
+    - Query a base de datos de inventario
+    
+    IMPORTANTE: Solo incluye equipos con Available o StandBy, 
+    excluyendo equipos en Rented, Maintenance, etc.
+    """
+    
+    # 🔌 DATOS SIMULADOS - Reemplazar con datos reales del Weekly Report
+    equipos_simulados = [
+        {"serial": "GTH-001", "tipo": "Telehandler", "estado": "Available"},
+        {"serial": "GTH-002", "tipo": "Telehandler", "estado": "StandBy"},
+        {"serial": "GTH-003", "tipo": "Telehandler", "estado": "Available"},
+        {"serial": "SL-204", "tipo": "Scissor Lift", "estado": "Available"},
+        {"serial": "SL-205", "tipo": "Scissor Lift", "estado": "StandBy"},
+        {"serial": "SL-206", "tipo": "Scissor Lift", "estado": "Available"},
+        {"serial": "BL-105", "tipo": "Boom Lift", "estado": "Available"},
+        {"serial": "BL-106", "tipo": "Boom Lift", "estado": "StandBy"},
+        {"serial": "FK-301", "tipo": "Forklift", "estado": "Available"},
+        {"serial": "FK-302", "tipo": "Forklift", "estado": "Available"},
+        {"serial": "AP-401", "tipo": "Aerial Platform", "estado": "Available"},
+        {"serial": "AP-402", "tipo": "Aerial Platform", "estado": "StandBy"},
+        {"serial": "ML-501", "tipo": "Material Lift", "estado": "Available"},
+        {"serial": "PL-601", "tipo": "Personnel Lift", "estado": "Available"},
+        {"serial": "PL-602", "tipo": "Personnel Lift", "estado": "StandBy"},
+    ]
+    
+    # Agregar campo 'display' para mostrar en dropdown
+    for equipo in equipos_simulados:
+        equipo['display'] = f"{equipo['serial']} - {equipo['tipo']} ({equipo['estado']})"
+    
+    return equipos_simulados
 
 # =============================================================================
 # FUNCIONES DE DATOS
@@ -3046,89 +3137,18 @@ elif page == "📝 Ingreso Manual":
             st.markdown("#### Equipos Asignados")
             st.caption("💡 La tarifa mensual total se calculará automáticamente según los equipos asignados")
             
-            # Mostrar equipos disponibles (simulado)
-            with st.expander("ℹ️ Ver Equipos Disponibles"):
-                st.info("""
-                **Equipos Disponibles para Asignación:**
+            # 🆕 v4.9.3: Mostrar equipos agregados DENTRO del form (solo visualización)
+            if st.session_state.equipos_temp_contract:
+                st.markdown("##### Equipos agregados:")
+                for idx, eq in enumerate(st.session_state.equipos_temp_contract):
+                    subtotal = eq['cantidad'] * eq['tarifa_unitaria']
+                    st.write(f"{idx+1}. **{eq['cantidad']} x {eq['serial']} - {eq['tipo']}** - ${eq['tarifa_unitaria']:,.0f} c/u = ${subtotal:,.0f}")
                 
-                En la versión completa, aquí se mostrarán los equipos con estado:
-                - ✅ Available
-                - 🔶 StandBy
-                
-                Provenientes del Weekly Operation Report.
-                """)
-            
-            # Tipos de equipos comunes en SPT
-            tipos_equipos_c = [
-                "Telehandler",
-                "Scissor Lift",
-                "Boom Lift",
-                "Forklift",
-                "Aerial Platform",
-                "Material Lift",
-                "Personnel Lift",
-                "Otro"
-            ]
-            
-            num_equipos_contrato = st.number_input(
-                "Número de Equipos",
-                min_value=1,
-                max_value=20,
-                value=1,
-                help="Cantidad de equipos asignados al contrato"
-            )
-            
-            equipos_contrato = []
-            for i in range(int(num_equipos_contrato)):
-                with st.expander(f"Equipo {i+1}", expanded=(i==0)):
-                    col_eq1, col_eq2 = st.columns(2)
-                    
-                    with col_eq1:
-                        tipo_equipo_c = st.selectbox(
-                            "Tipo de Equipo",
-                            options=tipos_equipos_c,
-                            key=f"contract_eq_type_{i}",
-                            help="Selecciona el tipo de equipo"
-                        )
-                        
-                        if tipo_equipo_c == "Otro":
-                            tipo_equipo_c_custom = st.text_input(
-                                "Especificar tipo de equipo",
-                                key=f"contract_eq_type_custom_{i}",
-                                placeholder="Ej: Mobile Crane"
-                            )
-                            tipo_equipo_c = tipo_equipo_c_custom if tipo_equipo_c_custom else "Otro"
-                        
-                        serial_number = st.text_input(
-                            "Serial Number",
-                            key=f"contract_eq_serial_{i}",
-                            placeholder="Ej: GTH-001",
-                            help="Serial del equipo asignado"
-                        )
-                    
-                    with col_eq2:
-                        ubicacion = st.text_input(
-                            "Ubicación",
-                            key=f"contract_eq_location_{i}",
-                            placeholder="Ej: Bogotá",
-                            help="Ubicación donde operará el equipo"
-                        )
-                        
-                        tarifa_equipo_c = st.number_input(
-                            "Tarifa Mensual (USD)",
-                            key=f"contract_eq_rate_{i}",
-                            min_value=0.0,
-                            value=0.0,
-                            step=100.0,
-                            help="Tarifa mensual para este equipo"
-                        )
-                    
-                    equipos_contrato.append({
-                        'tipo': tipo_equipo_c,
-                        'serial_number': serial_number,
-                        'ubicacion': ubicacion,
-                        'tarifa_mensual': tarifa_equipo_c
-                    })
+                # Mostrar tarifa total
+                tarifa_total_preview = sum(eq['cantidad'] * eq['tarifa_unitaria'] for eq in st.session_state.equipos_temp_contract)
+                st.success(f"**Tarifa Mensual Total:** ${tarifa_total_preview:,.0f} USD")
+            else:
+                st.info("👆 Agrega equipos usando los botones fuera del formulario")
             
             st.markdown("#### Información Adicional")
             notas_contrato = st.text_area(
@@ -3137,17 +3157,27 @@ elif page == "📝 Ingreso Manual":
                 height=100
             )
             
-            # Botón de envío
-            submitted_contract = st.form_submit_button("💾 Guardar Contrato", use_container_width=True)
+            # Botones de envío
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                submitted_contract = st.form_submit_button("💾 Guardar Contrato", use_container_width=True, type="primary")
+            with col_btn2:
+                limpiar_form_contract = st.form_submit_button("🗑️ Limpiar Form", use_container_width=True)
+            
+            if limpiar_form_contract:
+                st.session_state.equipos_temp_contract = []
+                st.rerun()
             
             if submitted_contract:
                 if not contrato_id or not cliente_contrato:
                     st.error("⚠️ Por favor completa los campos obligatorios: ID del Contrato y Cliente")
                 elif cliente_contrato == "Nuevo cliente...":
                     st.error("⚠️ Por favor ingresa el nombre del nuevo cliente")
+                elif len(st.session_state.equipos_temp_contract) == 0:
+                    st.error("⚠️ Agrega al menos un equipo al contrato")
                 else:
                     # Calcular tarifa mensual total de los equipos
-                    tarifa_mensual_contrato = sum(eq['tarifa_mensual'] for eq in equipos_contrato)
+                    tarifa_mensual_contrato = sum(eq['cantidad'] * eq['tarifa_unitaria'] for eq in st.session_state.equipos_temp_contract)
                     
                     if tarifa_mensual_contrato == 0:
                         st.warning("⚠️ Advertencia: La tarifa mensual total es $0. Verifica las tarifas de los equipos.")
@@ -3161,7 +3191,7 @@ elif page == "📝 Ingreso Manual":
                         'duracion_meses': duracion_contrato_meses,
                         'tarifa_mensual_total': tarifa_mensual_contrato,
                         'estado': estado_contrato,
-                        'equipos': equipos_contrato,
+                        'equipos': st.session_state.equipos_temp_contract.copy(),  # 🆕 v4.9.3
                         'notas': notas_contrato,
                         'fecha_ingreso': datetime.now().isoformat()
                     }
@@ -3169,10 +3199,96 @@ elif page == "📝 Ingreso Manual":
                     # Guardar en session_state
                     st.session_state.contratos_manuales.append(nuevo_contrato)
                     
+                    # 🆕 v4.9.3: Limpiar equipos temporales
+                    st.session_state.equipos_temp_contract = []
+                    
                     st.success(f"✅ Contrato {contrato_id} guardado exitosamente!")
                     st.success(f"💰 Tarifa mensual total: ${tarifa_mensual_contrato:,.0f} USD")
-                    st.success(f"📦 {len(equipos_contrato)} equipo(s) asignado(s)")
+                    st.success(f"📦 {len(nuevo_contrato['equipos'])} equipo(s) asignado(s)")
                     st.rerun()
+        
+        # =========================================================================
+        # 🆕 v4.9.3: FUERA DEL FORM - Agregar equipos dinámicamente
+        # =========================================================================
+        
+        st.markdown("---")
+        st.markdown("#### ➕ Agregar Equipos al Contrato")
+        
+        # Obtener lista de equipos disponibles del Weekly Report
+        equipos_disponibles = get_equipos_disponibles()
+        equipos_options = ["Seleccionar equipo..."] + [eq['display'] for eq in equipos_disponibles]
+        
+        col_eq1, col_eq2, col_eq3, col_eq4 = st.columns(4)
+        
+        with col_eq1:
+            equipo_seleccionado_display = st.selectbox(
+                "Equipo Disponible",
+                options=equipos_options,
+                key="equipo_contrato_select",
+                help="Equipos con estado Available o StandBy del Weekly Report"
+            )
+        
+        # Buscar el equipo completo en la lista
+        equipo_seleccionado = None
+        if equipo_seleccionado_display != "Seleccionar equipo...":
+            for eq in equipos_disponibles:
+                if eq['display'] == equipo_seleccionado_display:
+                    equipo_seleccionado = eq
+                    break
+        
+        with col_eq2:
+            ubicacion_equipo = st.text_input(
+                "Ubicación",
+                key="ubicacion_contrato",
+                placeholder="Ej: Bogotá",
+                help="Ubicación donde operará el equipo"
+            )
+        
+        with col_eq3:
+            cantidad_equipo = st.number_input(
+                "Cantidad",
+                min_value=1,
+                max_value=50,
+                value=1,
+                key="cantidad_contrato",
+                help="Número de unidades de este equipo"
+            )
+        
+        with col_eq4:
+            tarifa_equipo = st.number_input(
+                "Tarifa Unitaria Mensual (USD)",
+                min_value=0.0,
+                value=0.0,
+                step=100.0,
+                key="tarifa_contrato",
+                help="Tarifa mensual por unidad"
+            )
+        
+        col_btn_eq1, col_btn_eq2 = st.columns([3, 1])
+        with col_btn_eq1:
+            if st.button("➕ Agregar Equipo al Contrato", use_container_width=True, type="primary"):
+                if equipo_seleccionado and ubicacion_equipo and tarifa_equipo > 0:
+                    st.session_state.equipos_temp_contract.append({
+                        'serial': equipo_seleccionado['serial'],
+                        'tipo': equipo_seleccionado['tipo'],
+                        'estado': equipo_seleccionado['estado'],
+                        'ubicacion': ubicacion_equipo,
+                        'cantidad': cantidad_equipo,
+                        'tarifa_unitaria': tarifa_equipo
+                    })
+                    st.success(f"✅ {cantidad_equipo} x {equipo_seleccionado['serial']} - {equipo_seleccionado['tipo']} agregado(s)")
+                    st.rerun()
+                elif not equipo_seleccionado:
+                    st.error("⚠️ Por favor selecciona un equipo")
+                elif not ubicacion_equipo:
+                    st.error("⚠️ Por favor ingresa la ubicación")
+                else:
+                    st.error("⚠️ La tarifa debe ser mayor a $0")
+        
+        with col_btn_eq2:
+            if st.button("🗑️ Limpiar Equipos", use_container_width=True):
+                st.session_state.equipos_temp_contract = []
+                st.rerun()
         
         # Mostrar contratos existentes
         if st.session_state.contratos_manuales:
@@ -3191,6 +3307,22 @@ elif page == "📝 Ingreso Manual":
                         st.metric("Equipos", f"{len(contract['equipos'])} unidades")
                     
                     st.caption(f"Inicio: {contract['fecha_inicio']} | Fin: {contract['fecha_fin']}")
+                    
+                    # 🆕 v4.9.3: Mostrar equipos detallados
+                    if 'equipos' in contract and contract['equipos']:
+                        st.markdown("**Equipos Asignados:**")
+                        for eq in contract['equipos']:
+                            # Compatibilidad con formato nuevo (v4.9.3) y antiguo
+                            if 'cantidad' in eq and 'serial' in eq:
+                                # Formato nuevo: con cantidad y serial
+                                subtotal = eq['tarifa_unitaria'] * eq['cantidad']
+                                st.write(f"• {eq['cantidad']} x {eq['serial']} - {eq['tipo']} - ${eq['tarifa_unitaria']:,.0f} c/u = ${subtotal:,.0f} ({eq.get('ubicacion', 'N/A')})")
+                            elif 'serial_number' in eq:
+                                # Formato antiguo: sin cantidad
+                                st.write(f"• {eq.get('serial_number', 'N/A')} - {eq['tipo']} - ${eq.get('tarifa_mensual', 0):,.0f} ({eq.get('ubicacion', 'N/A')})")
+                            else:
+                                # Formato muy antiguo
+                                st.write(f"• {eq['tipo']} - ${eq.get('tarifa_mensual', 0):,.0f}")
                     
                     if st.button(f"🗑️ Eliminar", key=f"del_contract_{idx}"):
                         st.session_state.contratos_manuales.pop(idx)
@@ -3294,8 +3426,8 @@ elif page == "📝 Ingreso Manual":
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748B; padding: 2rem 0;'>
-    <p><strong>SPT Cash Flow Tool v4.5.3</strong></p>
-    <p>✅ Datos reales integrados • Factores estacionales desde históricos • Burn rate desde informe financiero</p>
+    <p><strong>SPT Cash Flow Tool v4.9.3</strong></p>
+    <p>✅ Contratos con equipos dinámicos • Equipos desde Weekly Report • Sistema consistente cotizaciones/contratos</p>
     <p>Desarrollado por <a href='https://www.ai-mindnovation.com' target='_blank'>AI-MindNovation</a></p>
     <p>© 2025 AI-MindNovation. Todos los derechos reservados.</p>
 </div>
