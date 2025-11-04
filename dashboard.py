@@ -1,7 +1,40 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.0
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.1
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🔧 MEJORAS v4.9.1 (Noviembre 4, 2025):
+=======================================
+✅ MEJORAS AL INGRESO MANUAL DE COTIZACIONES Y CONTRATOS:
+
+  1. SELECCIÓN DE CLIENTE MEJORADA:
+     - Selectbox con clientes existentes + opción "Nuevo cliente..."
+     - Evita duplicados y facilita selección rápida
+     - Aplica tanto en cotizaciones como en contratos
+  
+  2. TIPOS DE EQUIPOS CON SELECTBOX:
+     - Lista predefinida de tipos de equipos comunes (Telehandler, Scissor Lift, etc.)
+     - Opción "Otro" para equipos no listados
+     - Más rápido y reduce errores de escritura
+  
+  3. CÁLCULO AUTOMÁTICO DE TARIFAS:
+     - Tarifa mensual total se calcula automáticamente de los equipos
+     - Eliminado campo manual de "Tarifa Mensual Total"
+     - Tarifa se suma automáticamente al guardar
+  
+  4. FORMULARIOS OPTIMIZADOS:
+     - Campo "Modelo" eliminado en cotizaciones (no necesario para estimados)
+     - Campo "Modelo" eliminado en contratos (solo tipo y serial)
+     - Expanders colapsables para múltiples equipos (primero expandido)
+     - Validación mejorada al guardar
+  
+  5. UX MEJORADA:
+     - Mensajes más claros al guardar
+     - Advertencias si tarifa es $0
+     - Confirmación de cliente nuevo
+     - Captions informativos
+  
+  Ubicación: Menú "📝 Ingreso Manual" → Tabs mejorados
 
 🎉 NUEVAS FUNCIONALIDADES v4.9.0 (Noviembre 3, 2025):
 =====================================================
@@ -1555,7 +1588,7 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 4.9.0
+    **Versión:** 4.9.1
     
     **🎉 NUEVO en v4.9.0 - FASE 4:**
     • ✅ Ingreso Manual de Cotizaciones y Contratos
@@ -2607,11 +2640,24 @@ elif page == "📝 Ingreso Manual":
                     help="Identificador único de la cotización"
                 )
                 
-                cliente = st.text_input(
+                # Cliente con selectbox + opción nuevo
+                clientes_existentes = ["Nuevo cliente..."] + sorted(list(set([q['cliente'] for q in st.session_state.cotizaciones_manuales] + 
+                                                                             [c['cliente'] for c in st.session_state.contratos_manuales])))
+                
+                cliente_seleccion = st.selectbox(
                     "Cliente",
-                    placeholder="Nombre del cliente",
-                    help="Nombre de la empresa cliente"
+                    options=clientes_existentes,
+                    help="Selecciona un cliente existente o ingresa uno nuevo"
                 )
+                
+                if cliente_seleccion == "Nuevo cliente...":
+                    cliente = st.text_input(
+                        "Nombre del Nuevo Cliente",
+                        placeholder="Nombre de la empresa cliente",
+                        key="nuevo_cliente_quote"
+                    )
+                else:
+                    cliente = cliente_seleccion
                 
                 fecha_cotizacion = st.date_input(
                     "Fecha de Cotización",
@@ -2643,14 +2689,6 @@ elif page == "📝 Ingreso Manual":
                     help="Duración estimada del contrato si se cierra"
                 )
                 
-                tarifa_mensual = st.number_input(
-                    "Tarifa Mensual Estimada (USD)",
-                    min_value=0.0,
-                    value=0.0,
-                    step=1000.0,
-                    help="Tarifa mensual total estimada"
-                )
-                
                 fecha_inicio_estimada = st.date_input(
                     "Fecha Inicio Estimada",
                     value=datetime.now() + timedelta(days=30),
@@ -2658,6 +2696,20 @@ elif page == "📝 Ingreso Manual":
                 )
             
             st.markdown("#### Equipos Requeridos")
+            st.caption("💡 La tarifa mensual total se calculará automáticamente según los equipos seleccionados")
+            
+            # Tipos de equipos comunes en SPT
+            tipos_equipos = [
+                "Telehandler",
+                "Scissor Lift",
+                "Boom Lift",
+                "Forklift",
+                "Aerial Platform",
+                "Material Lift",
+                "Personnel Lift",
+                "Otro"
+            ]
+            
             num_equipos = st.number_input(
                 "Número de Equipos",
                 min_value=1,
@@ -2668,31 +2720,33 @@ elif page == "📝 Ingreso Manual":
             
             equipos_cotizacion = []
             for i in range(int(num_equipos)):
-                with st.expander(f"Equipo {i+1}"):
-                    col_eq1, col_eq2 = st.columns(2)
-                    with col_eq1:
-                        tipo_equipo = st.text_input(
-                            "Tipo de Equipo",
-                            key=f"quote_eq_type_{i}",
-                            placeholder="Ej: Telehandler"
+                with st.expander(f"Equipo {i+1}", expanded=(i==0)):
+                    tipo_equipo = st.selectbox(
+                        "Tipo de Equipo",
+                        options=tipos_equipos,
+                        key=f"quote_eq_type_{i}",
+                        help="Selecciona el tipo de equipo a cotizar"
+                    )
+                    
+                    if tipo_equipo == "Otro":
+                        tipo_equipo_custom = st.text_input(
+                            "Especificar tipo de equipo",
+                            key=f"quote_eq_type_custom_{i}",
+                            placeholder="Ej: Mobile Crane"
                         )
-                        modelo = st.text_input(
-                            "Modelo",
-                            key=f"quote_eq_model_{i}",
-                            placeholder="Ej: GTH-5519"
-                        )
-                    with col_eq2:
-                        tarifa_equipo = st.number_input(
-                            "Tarifa Mensual (USD)",
-                            key=f"quote_eq_rate_{i}",
-                            min_value=0.0,
-                            value=0.0,
-                            step=100.0
-                        )
+                        tipo_equipo = tipo_equipo_custom if tipo_equipo_custom else "Otro"
+                    
+                    tarifa_equipo = st.number_input(
+                        "Tarifa Mensual (USD)",
+                        key=f"quote_eq_rate_{i}",
+                        min_value=0.0,
+                        value=0.0,
+                        step=100.0,
+                        help="Tarifa mensual estimada para este equipo"
+                    )
                     
                     equipos_cotizacion.append({
                         'tipo': tipo_equipo,
-                        'modelo': modelo,
                         'tarifa_mensual': tarifa_equipo
                     })
             
@@ -2709,7 +2763,15 @@ elif page == "📝 Ingreso Manual":
             if submitted_quote:
                 if not quote_id or not cliente:
                     st.error("⚠️ Por favor completa los campos obligatorios: ID de Cotización y Cliente")
+                elif cliente == "Nuevo cliente...":
+                    st.error("⚠️ Por favor ingresa el nombre del nuevo cliente")
                 else:
+                    # Calcular tarifa mensual total de los equipos
+                    tarifa_mensual = sum(eq['tarifa_mensual'] for eq in equipos_cotizacion)
+                    
+                    if tarifa_mensual == 0:
+                        st.warning("⚠️ Advertencia: La tarifa mensual total es $0. Verifica las tarifas de los equipos.")
+                    
                     # Calcular revenue ponderado
                     revenue_ponderado = tarifa_mensual * duracion_meses * (probabilidad_cierre / 100.0)
                     
@@ -2733,6 +2795,7 @@ elif page == "📝 Ingreso Manual":
                     st.session_state.cotizaciones_manuales.append(nueva_cotizacion)
                     
                     st.success(f"✅ Cotización {quote_id} guardada exitosamente!")
+                    st.success(f"💰 Tarifa mensual total: ${tarifa_mensual:,.0f} USD")
                     st.success(f"📊 Revenue ponderado: ${revenue_ponderado:,.0f} USD")
                     st.rerun()
         
@@ -2775,11 +2838,25 @@ elif page == "📝 Ingreso Manual":
                     help="Identificador único del contrato"
                 )
                 
-                cliente_contrato = st.text_input(
+                # Cliente con selectbox + opción nuevo
+                clientes_existentes_c = ["Nuevo cliente..."] + sorted(list(set([q['cliente'] for q in st.session_state.cotizaciones_manuales] + 
+                                                                               [c['cliente'] for c in st.session_state.contratos_manuales])))
+                
+                cliente_seleccion_c = st.selectbox(
                     "Cliente",
-                    placeholder="Nombre del cliente",
-                    help="Nombre de la empresa cliente"
+                    options=clientes_existentes_c,
+                    help="Selecciona un cliente existente o ingresa uno nuevo",
+                    key="cliente_contrato_select"
                 )
+                
+                if cliente_seleccion_c == "Nuevo cliente...":
+                    cliente_contrato = st.text_input(
+                        "Nombre del Nuevo Cliente",
+                        placeholder="Nombre de la empresa cliente",
+                        key="nuevo_cliente_contrato"
+                    )
+                else:
+                    cliente_contrato = cliente_seleccion_c
                 
                 fecha_inicio_contrato = st.date_input(
                     "Fecha de Inicio",
@@ -2808,14 +2885,6 @@ elif page == "📝 Ingreso Manual":
                     st.info("📅 Contrato con fecha fin abierta (notificación con 1 mes de anticipación)")
                     fecha_fin_contrato = None
                 
-                tarifa_mensual_contrato = st.number_input(
-                    "Tarifa Mensual Total (USD)",
-                    min_value=0.0,
-                    value=0.0,
-                    step=1000.0,
-                    help="Tarifa mensual total del contrato"
-                )
-                
                 estado_contrato = st.selectbox(
                     "Estado del Contrato",
                     options=["Activo", "Pendiente", "En negociación"],
@@ -2823,9 +2892,10 @@ elif page == "📝 Ingreso Manual":
                 )
             
             st.markdown("#### Equipos Asignados")
+            st.caption("💡 La tarifa mensual total se calculará automáticamente según los equipos asignados")
             
             # Mostrar equipos disponibles (simulado)
-            with st.expander("Ver Equipos Disponibles"):
+            with st.expander("ℹ️ Ver Equipos Disponibles"):
                 st.info("""
                 **Equipos Disponibles para Asignación:**
                 
@@ -2835,6 +2905,18 @@ elif page == "📝 Ingreso Manual":
                 
                 Provenientes del Weekly Operation Report.
                 """)
+            
+            # Tipos de equipos comunes en SPT
+            tipos_equipos_c = [
+                "Telehandler",
+                "Scissor Lift",
+                "Boom Lift",
+                "Forklift",
+                "Aerial Platform",
+                "Material Lift",
+                "Personnel Lift",
+                "Otro"
+            ]
             
             num_equipos_contrato = st.number_input(
                 "Número de Equipos",
@@ -2846,43 +2928,52 @@ elif page == "📝 Ingreso Manual":
             
             equipos_contrato = []
             for i in range(int(num_equipos_contrato)):
-                with st.expander(f"Equipo {i+1}"):
-                    col_eq1, col_eq2, col_eq3 = st.columns(3)
+                with st.expander(f"Equipo {i+1}", expanded=(i==0)):
+                    col_eq1, col_eq2 = st.columns(2)
+                    
                     with col_eq1:
-                        tipo_equipo_c = st.text_input(
+                        tipo_equipo_c = st.selectbox(
                             "Tipo de Equipo",
+                            options=tipos_equipos_c,
                             key=f"contract_eq_type_{i}",
-                            placeholder="Ej: Telehandler"
+                            help="Selecciona el tipo de equipo"
                         )
+                        
+                        if tipo_equipo_c == "Otro":
+                            tipo_equipo_c_custom = st.text_input(
+                                "Especificar tipo de equipo",
+                                key=f"contract_eq_type_custom_{i}",
+                                placeholder="Ej: Mobile Crane"
+                            )
+                            tipo_equipo_c = tipo_equipo_c_custom if tipo_equipo_c_custom else "Otro"
+                        
                         serial_number = st.text_input(
                             "Serial Number",
                             key=f"contract_eq_serial_{i}",
-                            placeholder="Ej: GTH-001"
+                            placeholder="Ej: GTH-001",
+                            help="Serial del equipo asignado"
                         )
+                    
                     with col_eq2:
-                        modelo_c = st.text_input(
-                            "Modelo",
-                            key=f"contract_eq_model_{i}",
-                            placeholder="Ej: GTH-5519"
-                        )
                         ubicacion = st.text_input(
                             "Ubicación",
                             key=f"contract_eq_location_{i}",
-                            placeholder="Ej: Bogotá"
+                            placeholder="Ej: Bogotá",
+                            help="Ubicación donde operará el equipo"
                         )
-                    with col_eq3:
+                        
                         tarifa_equipo_c = st.number_input(
                             "Tarifa Mensual (USD)",
                             key=f"contract_eq_rate_{i}",
                             min_value=0.0,
                             value=0.0,
-                            step=100.0
+                            step=100.0,
+                            help="Tarifa mensual para este equipo"
                         )
                     
                     equipos_contrato.append({
                         'tipo': tipo_equipo_c,
                         'serial_number': serial_number,
-                        'modelo': modelo_c,
                         'ubicacion': ubicacion,
                         'tarifa_mensual': tarifa_equipo_c
                     })
@@ -2900,7 +2991,15 @@ elif page == "📝 Ingreso Manual":
             if submitted_contract:
                 if not contrato_id or not cliente_contrato:
                     st.error("⚠️ Por favor completa los campos obligatorios: ID del Contrato y Cliente")
+                elif cliente_contrato == "Nuevo cliente...":
+                    st.error("⚠️ Por favor ingresa el nombre del nuevo cliente")
                 else:
+                    # Calcular tarifa mensual total de los equipos
+                    tarifa_mensual_contrato = sum(eq['tarifa_mensual'] for eq in equipos_contrato)
+                    
+                    if tarifa_mensual_contrato == 0:
+                        st.warning("⚠️ Advertencia: La tarifa mensual total es $0. Verifica las tarifas de los equipos.")
+                    
                     # Crear contrato
                     nuevo_contrato = {
                         'contrato_id': contrato_id,
@@ -2920,6 +3019,7 @@ elif page == "📝 Ingreso Manual":
                     
                     st.success(f"✅ Contrato {contrato_id} guardado exitosamente!")
                     st.success(f"💰 Tarifa mensual total: ${tarifa_mensual_contrato:,.0f} USD")
+                    st.success(f"📦 {len(equipos_contrato)} equipo(s) asignado(s)")
                     st.rerun()
         
         # Mostrar contratos existentes
