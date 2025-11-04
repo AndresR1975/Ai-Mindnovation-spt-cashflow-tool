@@ -1776,10 +1776,60 @@ def calcular_transferencias_con_balance(proyecciones_df, efectivo_inicial, meses
     }
 
 def get_data():
-    """v5.1.0: Retorna datos procesados o None"""
-    if st.session_state.get('datos_procesados') is not None:
+    """
+    Retorna datos según la fuente (demo o real)
+    
+    ✅ v4.5.5: CORRECCIÓN CRÍTICA - Cálculo dinámico del burn rate
+    ✅ v4.5.3: Todos los datos de demo también usan métricas reales
+    del backend como base, eliminando completamente los valores hardcodeados.
+    """
+    
+    if st.session_state.data_source == 'real' and st.session_state.datos_procesados:
         return st.session_state.datos_procesados
-    return None
+    else:
+        df_historical, years_data = get_historical_data_complete()
+        
+        # Calcular factores estacionales por año
+        seasonal_by_year = {}
+        for year, revenues in years_data.items():
+            if len(revenues) == 12:
+                avg = np.mean(revenues)
+                seasonal_by_year[year] = [r / avg for r in revenues]
+        
+        # ✅ CAMBIO PRINCIPAL: Usar factores estacionales REALES
+        seasonal_avg = get_real_seasonal_factors()
+        
+        # ✅ Usar métricas financieras REALES
+        financial_real = get_real_financial_data()
+        
+        # ✅ Usar top clientes REALES
+        top_clients_real = get_real_top_clients()
+        
+        # 🔧 CORRECCIÓN v4.5.5: Calcular burn_rate dinámicamente
+        # Usar revenue promedio histórico para el cálculo
+        revenue_promedio = df_historical['revenue'].mean()
+        burn_rate_data = calcular_burn_rate(revenue_promedio)
+        
+        return {
+            'historical': {
+                'revenue_promedio': int(revenue_promedio),
+                'revenue_minimo': int(df_historical['revenue'].min()),
+                'revenue_maximo': int(df_historical['revenue'].max()),
+                'top_clients': top_clients_real,  # ✅ DATOS REALES
+                'periodos': 33,
+                'data': df_historical,
+                'years_data': years_data
+            },
+            'financial': {
+                'burn_rate': burn_rate_data['burn_rate'],           # ✅ CALCULADO dinámicamente
+                'gastos_fijos': burn_rate_data['gastos_fijos'],     # ✅ REAL: $65,732
+                'costos_variables': burn_rate_data['costos_variables'], # ✅ CALCULADO: Revenue × 9.62%
+                'tasa_costos_variables': financial_real['tasa_costos_variables'],  # ✅ Para proyecciones
+                'margen_operativo': financial_real['margen_operativo']  # ✅ REAL: 48.5%
+            },
+            'seasonal_factors': seasonal_avg,  # ✅ DATOS REALES calculados
+            'seasonal_by_year': seasonal_by_year
+        }
 
 
 # =============================================================================
@@ -2176,9 +2226,6 @@ data = get_data()
 
 if page == "🏠 Resumen Ejecutivo":
     st.markdown("## 🎯 Resumen Ejecutivo")
-    if data is None:
-        st.warning("📁 Cargue sus archivos Excel para comenzar")
-        st.stop()
     
     # 🆕 v4.8.0: Indicador visual corregido - muestra verde cuando hay datos reales
     if st.session_state.data_source == 'real':
@@ -2573,10 +2620,7 @@ if page == "🏠 Resumen Ejecutivo":
 
 elif page == "📈 Análisis Histórico":
     st.markdown("## 📈 Análisis Histórico")
-    if data is None:
-        st.warning("📁 Cargue sus archivos Excel para comenzar")
-        st.stop()
-        
+    
     df_hist = data['historical']['data']
     
     col1, col2, col3 = st.columns(3)
@@ -2661,10 +2705,7 @@ elif page == "📈 Análisis Histórico":
 
 elif page == "💵 Proyecciones":
     st.markdown("## 💵 Proyecciones Multi-Escenario")
-    if data is None:
-        st.warning("📁 Cargue sus archivos Excel para comenzar")
-        st.stop()
-        
+    
     meses_proyeccion = st.slider("Meses a proyectar:", 3, 12, 6, key="proyeccion_slider")
     
     # 🆕 v4.6.0: Pasar financial_data completo para cálculo dinámico de burn rate
@@ -2888,9 +2929,6 @@ elif page == "💵 Proyecciones":
 
 elif page == "📊 Reportes Detallados":
     st.markdown("## 📊 Reportes Detallados")
-    if data is None:
-        st.warning("📁 Cargue sus archivos Excel para comenzar")
-        st.stop()
     
     tabs = st.tabs(["📈 Estacionalidad", "🔥 Burn Rate", "💰 Balance Proyectado"])
     
@@ -3179,9 +3217,6 @@ elif page == "📊 Reportes Detallados":
 
 elif page == "📝 Ingreso Manual":
     st.markdown("## 📝 Ingreso Manual de Cotizaciones y Contratos")
-    if data is None:
-        st.warning("📁 Cargue sus archivos Excel para comenzar")
-        st.stop()
     
     st.info("""
     **Funcionalidad:** Permite ingresar manualmente cotizaciones y contratos futuros para 
