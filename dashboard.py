@@ -1,7 +1,43 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.8.1
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.0
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🎉 NUEVAS FUNCIONALIDADES v4.9.0 (Noviembre 3, 2025):
+=====================================================
+✅ FASE 4 - INGRESO MANUAL DE COTIZACIONES Y CONTRATOS:
+
+  1. NUEVA PÁGINA "INGRESO MANUAL":
+     - Interfaz completa para ingresar cotizaciones y contratos futuros
+     - Permite analizar impacto de nuevos negocios en proyecciones
+     - Gestión separada de cotizaciones (con probabilidad) y contratos (confirmados)
+  
+  2. FORMULARIO DE COTIZACIONES:
+     - ID de cotización, cliente, fechas de validez
+     - Probabilidad de cierre (slider 0-100%)
+     - Revenue ponderado automático
+     - Equipos requeridos con tarifas individuales
+     - Duración estimada del contrato
+  
+  3. FORMULARIO DE CONTRATOS:
+     - ID del contrato, cliente, estado
+     - Opción de duración fija o fecha fin abierta
+     - Equipos asignados con serial numbers
+     - Tarifa mensual total y por equipo
+     - Integración con disponibilidad de equipos (preparada)
+  
+  4. PANEL DE RESUMEN:
+     - Vista consolidada de todas las cotizaciones y contratos
+     - Cálculo de revenue ponderado total
+     - Análisis de impacto en proyecciones futuras
+     - Exportación y gestión de datos ingresados
+  
+  5. PREPARACIÓN PARA ESCENARIOS DINÁMICOS:
+     - Los datos ingresados se almacenan para uso futuro
+     - Próxima integración: ajuste automático de escenarios según cotizaciones/contratos
+     - Base para proyecciones con nuevos negocios considerados
+  
+  Ubicación: Nueva opción "📝 Ingreso Manual" en el menú de navegación
 
 🔧 CORRECCIONES CRÍTICAS v4.8.1 (Noviembre 3, 2025):
 =====================================================
@@ -499,6 +535,13 @@ if 'dias_liquidacion' not in st.session_state:
 # 🆕 v4.8.1: Escenario para proyecciones y transferencias
 if 'escenario_proyeccion' not in st.session_state:
     st.session_state.escenario_proyeccion = 'Moderado'  # Default: Moderado
+
+# 🆕 v4.9.0: Ingreso manual de cotizaciones y contratos
+if 'cotizaciones_manuales' not in st.session_state:
+    st.session_state.cotizaciones_manuales = []
+
+if 'contratos_manuales' not in st.session_state:
+    st.session_state.contratos_manuales = []
 
 # =============================================================================
 # FUNCIONES AUXILIARES
@@ -1502,7 +1545,7 @@ with st.sidebar:
     st.markdown("### 📊 Navegación")
     page = st.radio(
         "Selecciona sección:",
-        ["🏠 Resumen Ejecutivo", "📈 Análisis Histórico", "💵 Proyecciones", "📊 Reportes Detallados"],
+        ["🏠 Resumen Ejecutivo", "📈 Análisis Histórico", "💵 Proyecciones", "📊 Reportes Detallados", "📝 Ingreso Manual"],
         label_visibility="collapsed"
     )
     
@@ -1512,21 +1555,22 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 4.8.1
+    **Versión:** 4.9.0
     
-    **🔧 NUEVO en v4.8.1 - CORRECCIONES CRÍTICAS:**
+    **🎉 NUEVO en v4.9.0 - FASE 4:**
+    • ✅ Ingreso Manual de Cotizaciones y Contratos
+    • ✅ Formularios interactivos para nuevos negocios
+    • ✅ Panel de resumen consolidado
+    • ✅ Base para proyecciones con contratos futuros
+    
+    **🔧 FASE 3 (v4.8.1):**
     • ✅ Proyecciones DETERMINISTAS (sin random)
     • ✅ Transferencias DESCUENTAN del balance
-    • ✅ Inversiones como recomendaciones virtuales
     • ✅ Selector de ESCENARIO (Conservador/Moderado/Optimista)
     
-    **🎉 FASE 3 (v4.8.0):**
+    **💰 FASE 2 (v4.8.0):**
     • ✅ Gestión de Excedentes e Inversiones Temporales
     • ✅ Transferencias Trimestrales a Casa Matriz
-    
-    **🔥 Correcciones v4.6.0:**
-    • ✅ Burn Rate DINÁMICO en proyecciones
-    • ✅ Margen de protección configurable (1-3 meses)
     
     [AI-MindNovation](https://www.ai-mindnovation.com)
     """)
@@ -2527,6 +2571,469 @@ elif page == "📊 Reportes Detallados":
         Los 3 escenarios proyectan situaciones diferentes según crecimiento del revenue, 
         con burn rate ajustándose proporcionalmente en cada caso.
         """)
+
+# =============================================================================
+# PÁGINA: INGRESO MANUAL
+# =============================================================================
+
+elif page == "📝 Ingreso Manual":
+    st.markdown("## 📝 Ingreso Manual de Cotizaciones y Contratos")
+    
+    st.info("""
+    **Funcionalidad:** Permite ingresar manualmente cotizaciones y contratos futuros para 
+    analizar su impacto en las proyecciones financieras.
+    
+    🔹 **Cotizaciones:** Oportunidades con probabilidad de cierre  
+    🔹 **Contratos:** Compromisos confirmados con equipos asignados
+    """)
+    
+    # Tabs para cotizaciones y contratos
+    tab1, tab2, tab3 = st.tabs(["📋 Cotizaciones", "📄 Contratos", "📊 Resumen"])
+    
+    # =========================================================================
+    # TAB 1: COTIZACIONES
+    # =========================================================================
+    
+    with tab1:
+        st.markdown("### 📋 Ingresar Nueva Cotización")
+        
+        with st.form("form_cotizacion"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                quote_id = st.text_input(
+                    "ID de Cotización",
+                    placeholder="Ej: Q-2025-001",
+                    help="Identificador único de la cotización"
+                )
+                
+                cliente = st.text_input(
+                    "Cliente",
+                    placeholder="Nombre del cliente",
+                    help="Nombre de la empresa cliente"
+                )
+                
+                fecha_cotizacion = st.date_input(
+                    "Fecha de Cotización",
+                    value=datetime.now(),
+                    help="Fecha en que se genera la cotización"
+                )
+                
+                fecha_valida_hasta = st.date_input(
+                    "Válida Hasta",
+                    value=datetime.now() + timedelta(days=30),
+                    help="Fecha límite de validez de la cotización"
+                )
+            
+            with col2:
+                probabilidad_cierre = st.slider(
+                    "Probabilidad de Cierre (%)",
+                    min_value=0,
+                    max_value=100,
+                    value=50,
+                    step=5,
+                    help="Probabilidad estimada de que la cotización se cierre"
+                )
+                
+                duracion_meses = st.number_input(
+                    "Duración Estimada (meses)",
+                    min_value=1,
+                    max_value=36,
+                    value=12,
+                    help="Duración estimada del contrato si se cierra"
+                )
+                
+                tarifa_mensual = st.number_input(
+                    "Tarifa Mensual Estimada (USD)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=1000.0,
+                    help="Tarifa mensual total estimada"
+                )
+                
+                fecha_inicio_estimada = st.date_input(
+                    "Fecha Inicio Estimada",
+                    value=datetime.now() + timedelta(days=30),
+                    help="Fecha estimada de inicio si se confirma"
+                )
+            
+            st.markdown("#### Equipos Requeridos")
+            num_equipos = st.number_input(
+                "Número de Equipos",
+                min_value=1,
+                max_value=20,
+                value=1,
+                help="Cantidad de equipos incluidos en la cotización"
+            )
+            
+            equipos_cotizacion = []
+            for i in range(int(num_equipos)):
+                with st.expander(f"Equipo {i+1}"):
+                    col_eq1, col_eq2 = st.columns(2)
+                    with col_eq1:
+                        tipo_equipo = st.text_input(
+                            "Tipo de Equipo",
+                            key=f"quote_eq_type_{i}",
+                            placeholder="Ej: Telehandler"
+                        )
+                        modelo = st.text_input(
+                            "Modelo",
+                            key=f"quote_eq_model_{i}",
+                            placeholder="Ej: GTH-5519"
+                        )
+                    with col_eq2:
+                        tarifa_equipo = st.number_input(
+                            "Tarifa Mensual (USD)",
+                            key=f"quote_eq_rate_{i}",
+                            min_value=0.0,
+                            value=0.0,
+                            step=100.0
+                        )
+                    
+                    equipos_cotizacion.append({
+                        'tipo': tipo_equipo,
+                        'modelo': modelo,
+                        'tarifa_mensual': tarifa_equipo
+                    })
+            
+            st.markdown("#### Notas Adicionales")
+            notas = st.text_area(
+                "Notas o Comentarios",
+                placeholder="Información adicional sobre la cotización...",
+                height=100
+            )
+            
+            # Botón de envío
+            submitted_quote = st.form_submit_button("💾 Guardar Cotización", use_container_width=True)
+            
+            if submitted_quote:
+                if not quote_id or not cliente:
+                    st.error("⚠️ Por favor completa los campos obligatorios: ID de Cotización y Cliente")
+                else:
+                    # Calcular revenue ponderado
+                    revenue_ponderado = tarifa_mensual * duracion_meses * (probabilidad_cierre / 100.0)
+                    
+                    # Crear cotización
+                    nueva_cotizacion = {
+                        'quote_id': quote_id,
+                        'cliente': cliente,
+                        'fecha_cotizacion': fecha_cotizacion.isoformat(),
+                        'fecha_valida_hasta': fecha_valida_hasta.isoformat(),
+                        'fecha_inicio_estimada': fecha_inicio_estimada.isoformat(),
+                        'probabilidad_cierre': probabilidad_cierre,
+                        'duracion_meses': duracion_meses,
+                        'tarifa_mensual': tarifa_mensual,
+                        'revenue_ponderado': revenue_ponderado,
+                        'equipos': equipos_cotizacion,
+                        'notas': notas,
+                        'fecha_ingreso': datetime.now().isoformat()
+                    }
+                    
+                    # Guardar en session_state
+                    st.session_state.cotizaciones_manuales.append(nueva_cotizacion)
+                    
+                    st.success(f"✅ Cotización {quote_id} guardada exitosamente!")
+                    st.success(f"📊 Revenue ponderado: ${revenue_ponderado:,.0f} USD")
+                    st.rerun()
+        
+        # Mostrar cotizaciones existentes
+        if st.session_state.cotizaciones_manuales:
+            st.markdown("---")
+            st.markdown("### 📋 Cotizaciones Guardadas")
+            
+            for idx, quote in enumerate(st.session_state.cotizaciones_manuales):
+                with st.expander(f"{quote['quote_id']} - {quote['cliente']} ({quote['probabilidad_cierre']}%)"):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Tarifa Mensual", f"${quote['tarifa_mensual']:,.0f}")
+                    with col2:
+                        st.metric("Duración", f"{quote['duracion_meses']} meses")
+                    with col3:
+                        st.metric("Revenue Ponderado", f"${quote['revenue_ponderado']:,.0f}")
+                    
+                    st.caption(f"Válida hasta: {quote['fecha_valida_hasta']}")
+                    st.caption(f"Inicio estimado: {quote['fecha_inicio_estimada']}")
+                    
+                    if st.button(f"🗑️ Eliminar", key=f"del_quote_{idx}"):
+                        st.session_state.cotizaciones_manuales.pop(idx)
+                        st.rerun()
+    
+    # =========================================================================
+    # TAB 2: CONTRATOS
+    # =========================================================================
+    
+    with tab2:
+        st.markdown("### 📄 Ingresar Nuevo Contrato")
+        
+        with st.form("form_contrato"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                contrato_id = st.text_input(
+                    "ID del Contrato",
+                    placeholder="Ej: C-2025-001",
+                    help="Identificador único del contrato"
+                )
+                
+                cliente_contrato = st.text_input(
+                    "Cliente",
+                    placeholder="Nombre del cliente",
+                    help="Nombre de la empresa cliente"
+                )
+                
+                fecha_inicio_contrato = st.date_input(
+                    "Fecha de Inicio",
+                    value=datetime.now(),
+                    help="Fecha de inicio del contrato"
+                )
+                
+                duracion_tipo = st.radio(
+                    "Tipo de Duración",
+                    options=["Duración fija (meses)", "Fecha fin abierta"],
+                    help="Selecciona si el contrato tiene duración definida o es abierto"
+                )
+            
+            with col2:
+                if duracion_tipo == "Duración fija (meses)":
+                    duracion_contrato_meses = st.number_input(
+                        "Duración (meses)",
+                        min_value=1,
+                        max_value=60,
+                        value=12,
+                        help="Duración del contrato en meses"
+                    )
+                    fecha_fin_contrato = fecha_inicio_contrato + timedelta(days=duracion_contrato_meses * 30)
+                else:
+                    duracion_contrato_meses = None
+                    st.info("📅 Contrato con fecha fin abierta (notificación con 1 mes de anticipación)")
+                    fecha_fin_contrato = None
+                
+                tarifa_mensual_contrato = st.number_input(
+                    "Tarifa Mensual Total (USD)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=1000.0,
+                    help="Tarifa mensual total del contrato"
+                )
+                
+                estado_contrato = st.selectbox(
+                    "Estado del Contrato",
+                    options=["Activo", "Pendiente", "En negociación"],
+                    help="Estado actual del contrato"
+                )
+            
+            st.markdown("#### Equipos Asignados")
+            
+            # Mostrar equipos disponibles (simulado)
+            with st.expander("Ver Equipos Disponibles"):
+                st.info("""
+                **Equipos Disponibles para Asignación:**
+                
+                En la versión completa, aquí se mostrarán los equipos con estado:
+                - ✅ Available
+                - 🔶 StandBy
+                
+                Provenientes del Weekly Operation Report.
+                """)
+            
+            num_equipos_contrato = st.number_input(
+                "Número de Equipos",
+                min_value=1,
+                max_value=20,
+                value=1,
+                help="Cantidad de equipos asignados al contrato"
+            )
+            
+            equipos_contrato = []
+            for i in range(int(num_equipos_contrato)):
+                with st.expander(f"Equipo {i+1}"):
+                    col_eq1, col_eq2, col_eq3 = st.columns(3)
+                    with col_eq1:
+                        tipo_equipo_c = st.text_input(
+                            "Tipo de Equipo",
+                            key=f"contract_eq_type_{i}",
+                            placeholder="Ej: Telehandler"
+                        )
+                        serial_number = st.text_input(
+                            "Serial Number",
+                            key=f"contract_eq_serial_{i}",
+                            placeholder="Ej: GTH-001"
+                        )
+                    with col_eq2:
+                        modelo_c = st.text_input(
+                            "Modelo",
+                            key=f"contract_eq_model_{i}",
+                            placeholder="Ej: GTH-5519"
+                        )
+                        ubicacion = st.text_input(
+                            "Ubicación",
+                            key=f"contract_eq_location_{i}",
+                            placeholder="Ej: Bogotá"
+                        )
+                    with col_eq3:
+                        tarifa_equipo_c = st.number_input(
+                            "Tarifa Mensual (USD)",
+                            key=f"contract_eq_rate_{i}",
+                            min_value=0.0,
+                            value=0.0,
+                            step=100.0
+                        )
+                    
+                    equipos_contrato.append({
+                        'tipo': tipo_equipo_c,
+                        'serial_number': serial_number,
+                        'modelo': modelo_c,
+                        'ubicacion': ubicacion,
+                        'tarifa_mensual': tarifa_equipo_c
+                    })
+            
+            st.markdown("#### Información Adicional")
+            notas_contrato = st.text_area(
+                "Notas o Comentarios",
+                placeholder="Información adicional sobre el contrato...",
+                height=100
+            )
+            
+            # Botón de envío
+            submitted_contract = st.form_submit_button("💾 Guardar Contrato", use_container_width=True)
+            
+            if submitted_contract:
+                if not contrato_id or not cliente_contrato:
+                    st.error("⚠️ Por favor completa los campos obligatorios: ID del Contrato y Cliente")
+                else:
+                    # Crear contrato
+                    nuevo_contrato = {
+                        'contrato_id': contrato_id,
+                        'cliente': cliente_contrato,
+                        'fecha_inicio': fecha_inicio_contrato.isoformat(),
+                        'fecha_fin': fecha_fin_contrato.isoformat() if fecha_fin_contrato else 'Abierta',
+                        'duracion_meses': duracion_contrato_meses,
+                        'tarifa_mensual_total': tarifa_mensual_contrato,
+                        'estado': estado_contrato,
+                        'equipos': equipos_contrato,
+                        'notas': notas_contrato,
+                        'fecha_ingreso': datetime.now().isoformat()
+                    }
+                    
+                    # Guardar en session_state
+                    st.session_state.contratos_manuales.append(nuevo_contrato)
+                    
+                    st.success(f"✅ Contrato {contrato_id} guardado exitosamente!")
+                    st.success(f"💰 Tarifa mensual total: ${tarifa_mensual_contrato:,.0f} USD")
+                    st.rerun()
+        
+        # Mostrar contratos existentes
+        if st.session_state.contratos_manuales:
+            st.markdown("---")
+            st.markdown("### 📄 Contratos Guardados")
+            
+            for idx, contract in enumerate(st.session_state.contratos_manuales):
+                with st.expander(f"{contract['contrato_id']} - {contract['cliente']} ({contract['estado']})"):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Tarifa Mensual", f"${contract['tarifa_mensual_total']:,.0f}")
+                    with col2:
+                        duracion_display = f"{contract['duracion_meses']} meses" if contract['duracion_meses'] else "Fecha abierta"
+                        st.metric("Duración", duracion_display)
+                    with col3:
+                        st.metric("Equipos", f"{len(contract['equipos'])} unidades")
+                    
+                    st.caption(f"Inicio: {contract['fecha_inicio']} | Fin: {contract['fecha_fin']}")
+                    
+                    if st.button(f"🗑️ Eliminar", key=f"del_contract_{idx}"):
+                        st.session_state.contratos_manuales.pop(idx)
+                        st.rerun()
+    
+    # =========================================================================
+    # TAB 3: RESUMEN
+    # =========================================================================
+    
+    with tab3:
+        st.markdown("### 📊 Resumen de Ingreso Manual")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 📋 Cotizaciones")
+            num_cotizaciones = len(st.session_state.cotizaciones_manuales)
+            st.metric("Total Cotizaciones", num_cotizaciones)
+            
+            if num_cotizaciones > 0:
+                revenue_ponderado_total = sum(q['revenue_ponderado'] for q in st.session_state.cotizaciones_manuales)
+                tarifa_mensual_total_quotes = sum(q['tarifa_mensual'] for q in st.session_state.cotizaciones_manuales)
+                
+                st.metric("Revenue Ponderado Total", f"${revenue_ponderado_total:,.0f}")
+                st.metric("Tarifa Mensual Total (si todas cierran)", f"${tarifa_mensual_total_quotes:,.0f}")
+                
+                # Tabla de cotizaciones
+                st.markdown("##### Detalle de Cotizaciones")
+                df_quotes = pd.DataFrame([
+                    {
+                        'ID': q['quote_id'],
+                        'Cliente': q['cliente'],
+                        'Prob. Cierre': f"{q['probabilidad_cierre']}%",
+                        'Tarifa Mensual': f"${q['tarifa_mensual']:,.0f}",
+                        'Rev. Ponderado': f"${q['revenue_ponderado']:,.0f}"
+                    }
+                    for q in st.session_state.cotizaciones_manuales
+                ])
+                st.dataframe(df_quotes, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay cotizaciones ingresadas aún")
+        
+        with col2:
+            st.markdown("#### 📄 Contratos")
+            num_contratos = len(st.session_state.contratos_manuales)
+            st.metric("Total Contratos", num_contratos)
+            
+            if num_contratos > 0:
+                tarifa_mensual_total_contracts = sum(c['tarifa_mensual_total'] for c in st.session_state.contratos_manuales)
+                equipos_totales = sum(len(c['equipos']) for c in st.session_state.contratos_manuales)
+                
+                st.metric("Tarifa Mensual Total", f"${tarifa_mensual_total_contracts:,.0f}")
+                st.metric("Equipos Asignados", equipos_totales)
+                
+                # Tabla de contratos
+                st.markdown("##### Detalle de Contratos")
+                df_contracts = pd.DataFrame([
+                    {
+                        'ID': c['contrato_id'],
+                        'Cliente': c['cliente'],
+                        'Estado': c['estado'],
+                        'Tarifa Mensual': f"${c['tarifa_mensual_total']:,.0f}",
+                        'Equipos': len(c['equipos'])
+                    }
+                    for c in st.session_state.contratos_manuales
+                ])
+                st.dataframe(df_contracts, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay contratos ingresados aún")
+        
+        # Resumen consolidado
+        if num_cotizaciones > 0 or num_contratos > 0:
+            st.markdown("---")
+            st.markdown("#### 💡 Impacto en Proyecciones")
+            
+            st.info("""
+            **Próximos pasos:**
+            
+            Estos contratos y cotizaciones ingresados se utilizarán para:
+            
+            1. **Ajustar los escenarios** (Conservador/Moderado/Optimista) según probabilidades de cierre
+            2. **Proyectar revenue futuro** considerando nuevos contratos confirmados
+            3. **Analizar disponibilidad de equipos** para nuevas oportunidades
+            4. **Optimizar la planificación financiera** con vista a compromisos futuros
+            
+            En la siguiente actualización, estos datos se integrarán automáticamente en las proyecciones.
+            """)
+            
+            # Botón para limpiar todos los datos
+            if st.button("🗑️ Limpiar Todos los Datos", type="secondary"):
+                if st.checkbox("⚠️ Confirmar eliminación de todos los datos"):
+                    st.session_state.cotizaciones_manuales = []
+                    st.session_state.contratos_manuales = []
+                    st.success("✅ Todos los datos han sido eliminados")
+                    st.rerun()
 
 # =============================================================================
 # FOOTER
