@@ -1,7 +1,31 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.3
-================================================
+SPT CASH FLOW TOOL - Dashboard Streamlit v4.9.3.1
+==================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🔧 CORRECCIONES v4.9.3.1 (Noviembre 4, 2025):
+==============================================
+✅ INTEGRACIÓN CON PARSERS REALES:
+
+  1. EQUIPOS DESDE WEEKLY REPORT REAL:
+     - Usa WeeklyReportParser.get_equipos_disponibles()
+     - Carga equipos Available y StandBy del archivo real
+     - Fallback a datos simulados si no encuentra archivo
+  
+  2. CLIENTES DESDE UTILIZATION REPORT REAL:
+     - Usa UtilizationReportParser para cargar clientes existentes
+     - Lista completa de clientes históricos en dropdown
+     - Fallback a datos demo si no encuentra archivo
+  
+  3. BÚSQUEDA INTELIGENTE DE ARCHIVOS:
+     - Busca en data/inputs/ los archivos Excel
+     - Soporta patrones: *Weekly*Report*.xlsx, *Utilization*Report*.xlsx
+     - Mensajes claros si archivos no se encuentran
+  
+  4. MANEJO DE ERRORES ROBUSTO:
+     - Try-catch en todas las cargas de archivos
+     - Continúa funcionando con datos simulados si hay error
+     - Logs detallados para debugging
 
 🎉 MEJORAS v4.9.3 (Noviembre 4, 2025):
 =======================================
@@ -311,6 +335,21 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import numpy as np
 from io import BytesIO
+from pathlib import Path
+import sys
+
+# 🆕 v4.9.3.1: Imports para parsers reales
+try:
+    # Intentar importar parsers del usuario
+    PROJECT_DIR = Path(__file__).parent if hasattr(__file__, '__self__') else Path.cwd()
+    sys.path.append(str(PROJECT_DIR))
+    
+    from parsers.utilization_parser import UtilizationReportParser
+    from parsers.weekly_report_parser import WeeklyReportParser
+    PARSERS_DISPONIBLES = True
+except ImportError:
+    PARSERS_DISPONIBLES = False
+    print("⚠️ Parsers no disponibles - usando datos simulados")
 
 # =============================================================================
 # PROCESAMIENTO DE ARCHIVOS REALES - v4.7.0
@@ -807,7 +846,11 @@ def get_real_top_clients():
 
 def get_equipos_disponibles():
     """
-    ✅ v4.9.3: Obtiene equipos disponibles del Weekly Report
+    ✅ v4.9.3.1: Obtiene equipos disponibles del Weekly Report REAL
+    
+    PRIORIDAD DE CARGA:
+    1. Intenta cargar desde Weekly Report usando WeeklyReportParser
+    2. Si falla, usa datos simulados como fallback
     
     ESTADOS INCLUIDOS:
     - Available: Equipos listos para asignación inmediata
@@ -820,18 +863,48 @@ def get_equipos_disponibles():
     - estado: Estado actual ("Available" o "StandBy")
     - display: Texto para mostrar en dropdown (ej: "GTH-001 - Telehandler (Available)")
     
-    🔌 CONEXIÓN FUTURA:
-    Esta función actualmente retorna datos simulados realistas.
-    Para conectar con el Weekly Report real, reemplazar con:
-    - Lectura de archivo Excel/CSV del Weekly Report
-    - Llamada a API del sistema de gestión de equipos
-    - Query a base de datos de inventario
-    
-    IMPORTANTE: Solo incluye equipos con Available o StandBy, 
-    excluyendo equipos en Rented, Maintenance, etc.
+    🔌 CONEXIÓN CON WEEKLY REPORT:
+    Busca archivos que coincidan con el patrón: *Weekly*Report*.xlsx
+    en el directorio data/inputs/
     """
     
-    # 🔌 DATOS SIMULADOS - Reemplazar con datos reales del Weekly Report
+    equipos_reales = []
+    
+    # Intentar cargar desde archivo real
+    if PARSERS_DISPONIBLES:
+        try:
+            # Buscar archivo Weekly Report
+            inputs_dir = PROJECT_DIR / "data" / "inputs"
+            if inputs_dir.exists():
+                weekly_files = list(inputs_dir.glob("*Weekly*Report*.xlsx"))
+                
+                if weekly_files:
+                    weekly_file = weekly_files[0]  # Tomar el primero que encuentre
+                    print(f"📄 Cargando equipos desde: {weekly_file.name}")
+                    
+                    # Usar parser para cargar equipos
+                    parser = WeeklyReportParser(str(weekly_file))
+                    equipos = parser.get_equipos_disponibles()  # Retorna equipos Available y StandBy
+                    
+                    # Convertir a formato esperado
+                    for eq in equipos:
+                        equipos_reales.append({
+                            'serial': eq.serial_number,
+                            'tipo': eq.tipo,
+                            'estado': eq.status.value,
+                            'display': f"{eq.serial_number} - {eq.tipo} ({eq.status.value})"
+                        })
+                    
+                    if equipos_reales:
+                        print(f"✅ {len(equipos_reales)} equipos disponibles cargados desde Weekly Report")
+                        return equipos_reales
+                    
+        except Exception as e:
+            print(f"⚠️ Error cargando equipos reales: {str(e)}")
+            print("   Usando datos simulados como fallback")
+    
+    # 🔌 DATOS SIMULADOS - Fallback si no se pueden cargar datos reales
+    print("ℹ️  Usando equipos simulados (Weekly Report no encontrado)")
     equipos_simulados = [
         {"serial": "GTH-001", "tipo": "Telehandler", "estado": "Available"},
         {"serial": "GTH-002", "tipo": "Telehandler", "estado": "StandBy"},
@@ -855,6 +928,67 @@ def get_equipos_disponibles():
         equipo['display'] = f"{equipo['serial']} - {equipo['tipo']} ({equipo['estado']})"
     
     return equipos_simulados
+
+def get_clientes_historicos():
+    """
+    ✅ v4.9.3.1: Obtiene clientes históricos del Utilization Report REAL
+    
+    PRIORIDAD DE CARGA:
+    1. Intenta cargar desde Utilization Report usando UtilizationReportParser
+    2. Si falla, usa datos demo como fallback
+    
+    FORMATO DE RETORNO:
+    Set de strings con nombres de clientes únicos
+    
+    🔌 CONEXIÓN CON UTILIZATION REPORT:
+    Busca archivos que coincidan con el patrón: *Utilization*Report*.xlsx
+    en el directorio data/inputs/
+    """
+    
+    clientes_reales = set()
+    
+    # Intentar cargar desde archivos reales
+    if PARSERS_DISPONIBLES:
+        try:
+            inputs_dir = PROJECT_DIR / "data" / "inputs"
+            if inputs_dir.exists():
+                # Buscar archivos Utilization Report (pueden ser varios años)
+                util_files = list(inputs_dir.glob("*Utilization*Report*.xlsx"))
+                
+                if util_files:
+                    print(f"📄 Cargando clientes desde {len(util_files)} archivo(s) Utilization Report")
+                    
+                    for util_file in util_files:
+                        try:
+                            parser = UtilizationReportParser(str(util_file))
+                            records = parser.parse()
+                            
+                            # Extraer clientes únicos
+                            clientes_archivo = set(r.cliente for r in records if r.cliente)
+                            clientes_reales.update(clientes_archivo)
+                            
+                        except Exception as e:
+                            print(f"⚠️ Error parseando {util_file.name}: {str(e)}")
+                    
+                    if clientes_reales:
+                        print(f"✅ {len(clientes_reales)} clientes únicos cargados desde Utilization Reports")
+                        return clientes_reales
+                    
+        except Exception as e:
+            print(f"⚠️ Error cargando clientes reales: {str(e)}")
+            print("   Usando datos demo como fallback")
+    
+    # 🔌 DATOS DEMO - Fallback si no se pueden cargar datos reales
+    print("ℹ️  Usando clientes demo (Utilization Report no encontrado)")
+    clientes_demo = {
+        'Kluane/Aris',
+        'Explomin/Segovia', 
+        'Collective Mining',
+        'Kluane',
+        'Explomin'
+    }
+    
+    return clientes_demo
 
 # =============================================================================
 # FUNCIONES DE DATOS
@@ -2782,19 +2916,14 @@ elif page == "📝 Ingreso Manual":
             "Otro"
         ]
         
-        # OBTENER CLIENTES ANTES DEL FORM (más robusto)
+        # 🆕 v4.9.3.1: OBTENER CLIENTES DESDE UTILIZATION REPORT REAL
         clientes_disponibles = ["Nuevo cliente..."]
         try:
-            # Intentar obtener clientes de datos históricos
-            data = get_data()
-            if 'historical' in data and 'top_clients' in data['historical']:
-                for client_info in data['historical']['top_clients']:
-                    if isinstance(client_info, dict) and 'cliente' in client_info:
-                        clientes_disponibles.append(client_info['cliente'])
-                    elif isinstance(client_info, str):
-                        clientes_disponibles.append(client_info)
-        except:
-            pass  # Si falla, solo usar clientes manuales
+            # Cargar clientes históricos desde Utilization Report
+            clientes_historicos = get_clientes_historicos()
+            clientes_disponibles.extend(sorted(list(clientes_historicos)))
+        except Exception as e:
+            print(f"⚠️ Error cargando clientes históricos: {str(e)}")
         
         # Agregar clientes de cotizaciones y contratos manuales
         try:
@@ -3046,19 +3175,14 @@ elif page == "📝 Ingreso Manual":
     with tab2:
         st.markdown("### 📄 Ingresar Nuevo Contrato")
         
-        # OBTENER CLIENTES ANTES DEL FORM (más robusto) - reutilizar misma lista
+        # 🆕 v4.9.3.1: OBTENER CLIENTES DESDE UTILIZATION REPORT REAL
         clientes_disponibles_c = ["Nuevo cliente..."]
         try:
-            # Intentar obtener clientes de datos históricos
-            data = get_data()
-            if 'historical' in data and 'top_clients' in data['historical']:
-                for client_info in data['historical']['top_clients']:
-                    if isinstance(client_info, dict) and 'cliente' in client_info:
-                        clientes_disponibles_c.append(client_info['cliente'])
-                    elif isinstance(client_info, str):
-                        clientes_disponibles_c.append(client_info)
-        except:
-            pass
+            # Cargar clientes históricos desde Utilization Report
+            clientes_historicos = get_clientes_historicos()
+            clientes_disponibles_c.extend(sorted(list(clientes_historicos)))
+        except Exception as e:
+            print(f"⚠️ Error cargando clientes históricos: {str(e)}")
         
         # Agregar clientes de cotizaciones y contratos manuales
         try:
@@ -3426,8 +3550,8 @@ elif page == "📝 Ingreso Manual":
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748B; padding: 2rem 0;'>
-    <p><strong>SPT Cash Flow Tool v4.9.3</strong></p>
-    <p>✅ Contratos con equipos dinámicos • Equipos desde Weekly Report • Sistema consistente cotizaciones/contratos</p>
+    <p><strong>SPT Cash Flow Tool v4.9.3.1</strong></p>
+    <p>✅ Equipos y clientes REALES desde Weekly Report y Utilization Reports • Sistema consistente cotizaciones/contratos</p>
     <p>Desarrollado por <a href='https://www.ai-mindnovation.com' target='_blank'>AI-MindNovation</a></p>
     <p>© 2025 AI-MindNovation. Todos los derechos reservados.</p>
 </div>
