@@ -2691,6 +2691,36 @@ elif page == "📝 Ingreso Manual":
             "Otro"
         ]
         
+        # OBTENER CLIENTES ANTES DEL FORM (más robusto)
+        clientes_disponibles = ["Nuevo cliente..."]
+        try:
+            # Intentar obtener clientes de datos históricos
+            data = get_data()
+            if 'historical' in data and 'top_clients' in data['historical']:
+                for client_info in data['historical']['top_clients']:
+                    if isinstance(client_info, dict) and 'cliente' in client_info:
+                        clientes_disponibles.append(client_info['cliente'])
+                    elif isinstance(client_info, str):
+                        clientes_disponibles.append(client_info)
+        except:
+            pass  # Si falla, solo usar clientes manuales
+        
+        # Agregar clientes de cotizaciones y contratos manuales
+        try:
+            clientes_manuales = []
+            for q in st.session_state.cotizaciones_manuales:
+                if 'cliente' in q and q['cliente']:
+                    clientes_manuales.append(q['cliente'])
+            for c in st.session_state.contratos_manuales:
+                if 'cliente' in c and c['cliente']:
+                    clientes_manuales.append(c['cliente'])
+            clientes_disponibles.extend(clientes_manuales)
+        except:
+            pass
+        
+        # Eliminar duplicados y ordenar
+        clientes_disponibles = ["Nuevo cliente..."] + sorted(list(set([c for c in clientes_disponibles if c and c != "Nuevo cliente..."])))
+        
         with st.form("form_cotizacion"):
             col1, col2 = st.columns(2)
             
@@ -2701,22 +2731,10 @@ elif page == "📝 Ingreso Manual":
                     help="Identificador único de la cotización"
                 )
                 
-                # Cliente con selectbox + opción nuevo
-                # Obtener clientes de datos procesados
-                data = get_data()
-                clientes_historicos = []
-                if 'top_clients' in data.get('historical', {}):
-                    clientes_historicos = [c['cliente'] for c in data['historical']['top_clients']]
-                
-                # Agregar clientes de cotizaciones y contratos manuales
-                clientes_manuales = list(set([q['cliente'] for q in st.session_state.cotizaciones_manuales] + 
-                                             [c['cliente'] for c in st.session_state.contratos_manuales]))
-                
-                todos_clientes = ["Nuevo cliente..."] + sorted(list(set(clientes_historicos + clientes_manuales)))
-                
+                # Cliente con selectbox
                 cliente_seleccion = st.selectbox(
                     "Cliente",
-                    options=todos_clientes,
+                    options=clientes_disponibles,
                     help="Selecciona un cliente existente o ingresa uno nuevo"
                 )
                 
@@ -2937,6 +2955,34 @@ elif page == "📝 Ingreso Manual":
     with tab2:
         st.markdown("### 📄 Ingresar Nuevo Contrato")
         
+        # OBTENER CLIENTES ANTES DEL FORM (más robusto) - reutilizar misma lista
+        clientes_disponibles_c = ["Nuevo cliente..."]
+        try:
+            # Intentar obtener clientes de datos históricos
+            data = get_data()
+            if 'historical' in data and 'top_clients' in data['historical']:
+                for client_info in data['historical']['top_clients']:
+                    if isinstance(client_info, dict) and 'cliente' in client_info:
+                        clientes_disponibles_c.append(client_info['cliente'])
+                    elif isinstance(client_info, str):
+                        clientes_disponibles_c.append(client_info)
+        except:
+            pass
+        
+        # Agregar clientes de cotizaciones y contratos manuales
+        try:
+            for q in st.session_state.cotizaciones_manuales:
+                if 'cliente' in q and q['cliente']:
+                    clientes_disponibles_c.append(q['cliente'])
+            for c in st.session_state.contratos_manuales:
+                if 'cliente' in c and c['cliente']:
+                    clientes_disponibles_c.append(c['cliente'])
+        except:
+            pass
+        
+        # Eliminar duplicados y ordenar
+        clientes_disponibles_c = ["Nuevo cliente..."] + sorted(list(set([c for c in clientes_disponibles_c if c and c != "Nuevo cliente..."])))
+        
         with st.form("form_contrato"):
             col1, col2 = st.columns(2)
             
@@ -2947,13 +2993,10 @@ elif page == "📝 Ingreso Manual":
                     help="Identificador único del contrato"
                 )
                 
-                # Cliente con selectbox + opción nuevo
-                clientes_existentes_c = ["Nuevo cliente..."] + sorted(list(set([q['cliente'] for q in st.session_state.cotizaciones_manuales] + 
-                                                                               [c['cliente'] for c in st.session_state.contratos_manuales])))
-                
+                # Cliente con selectbox
                 cliente_seleccion_c = st.selectbox(
                     "Cliente",
-                    options=clientes_existentes_c,
+                    options=clientes_disponibles_c,
                     help="Selecciona un cliente existente o ingresa uno nuevo",
                     key="cliente_contrato_select"
                 )
