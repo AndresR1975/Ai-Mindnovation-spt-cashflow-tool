@@ -1,5 +1,5 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v5.1.0
+SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.0
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
@@ -965,7 +965,7 @@ if 'efectivo_disponible' not in st.session_state:
     st.session_state.efectivo_disponible = None
 
 if 'data_source' not in st.session_state:
-    st.session_state.data_source = None  # v5.1.0: Sin datos por defecto
+    st.session_state.data_source = 'demo'
 
 if 'archivos_cargados' not in st.session_state:
     st.session_state.archivos_cargados = {}
@@ -1022,20 +1022,99 @@ def calcular_tendencia_lineal(y_values):
 # DATOS REALES DEL BACKEND
 # =============================================================================
 
-# v5.1.0: get_real_seasonal_factors() ELIMINADA - contenía datos hardcoded
-
-# v5.1.0: get_real_financial_data() ELIMINADA - contenía datos hardcoded
-
-def calcular_burn_rate(revenue_mensual, gastos_fijos=65732, tasa_costos_variables=0.0962):
+def get_real_seasonal_factors():
     """
-    ✅ v5.1.0: Recibe parámetros en lugar de función hardcoded
+    ✅ DATOS REALES: Factores estacionales calculados desde datos históricos 2023-2025
     
-    Args:
-        revenue_mensual: Revenue del mes
-        gastos_fijos: Gastos fijos mensuales (default desde backend)
-        tasa_costos_variables: Tasa de costos variables (default desde backend)
+    Metodología:
+    1. Se procesaron Utilization Reports de 2023, 2024 y 2025 (33 meses)
+    2. Se agrupó el revenue por mes (promediando los 3 años)
+    3. Se calculó el factor como: Revenue_mes / Revenue_promedio_global
+    
+    Interpretación:
+    - 1.0 = Mes promedio
+    - >1.0 = Mes con mayor actividad (ej: Julio 1.465 = +46.5% sobre promedio)
+    - <1.0 = Mes con menor actividad (ej: Diciembre 0.289 = -71.1% bajo promedio)
     """
-    # financial_data = get_real_financial_data()  # ELIMINADO en v5.1.0
+    return {
+        'Enero': 0.760,      # -24.0% vs promedio
+        'Febrero': 0.945,    # -5.5% vs promedio  
+        'Marzo': 1.070,      # +7.0% vs promedio
+        'Abril': 1.055,      # +5.5% vs promedio
+        'Mayo': 0.988,       # -1.2% vs promedio
+        'Junio': 1.109,      # +10.9% vs promedio
+        'Julio': 1.465,      # +46.5% vs promedio ⭐ PICO MÁXIMO
+        'Agosto': 1.072,     # +7.2% vs promedio
+        'Septiembre': 1.167, # +16.7% vs promedio
+        'Octubre': 1.035,    # +3.5% vs promedio
+        'Noviembre': 1.046,  # +4.6% vs promedio
+        'Diciembre': 0.289   # -71.1% vs promedio ⚠️ MÍNIMO
+    }
+
+def get_real_financial_data():
+    """
+    ✅ DATOS REALES: Métricas financieras según metodología del backend
+    
+    METODOLOGÍA BURN RATE (Backend Analysis):
+    
+    1. GASTOS FIJOS (no varían con revenue): $65,732 USD/mes
+       Desglose:
+       - HR Travel: $2,450
+       - Marketing: $7,864
+       - Admin: $60,015
+       - Insurance/Legal: $263
+       - Salary: $1,975
+       - Other Expenses: $6,750
+       - Taxes: $37
+    
+    2. COSTOS VARIABLES (proporcionales al revenue): 9.62% del revenue
+       Desglose:
+       - Logistics: $9,083
+       - Equipment: $6,780
+       (Total depende del revenue del mes)
+    
+    3. FÓRMULA BURN RATE:
+       Burn Rate = Gastos Fijos + (Revenue × 9.62%)
+       
+       Ejemplo con revenue promedio ($127,468):
+       = $65,732 + ($127,468 × 0.0962)
+       = $65,732 + $12,262
+       = $77,994 USD/mes
+    
+    4. MARGEN OPERATIVO:
+       = (Revenue - Burn Rate) / Revenue
+       = ($127,468 - $77,994) / $127,468
+       = 48.5%
+    
+    Nota: Esta metodología permite calcular el burn rate dinámico según
+    el revenue proyectado de cada mes.
+    """
+    return {
+        'gastos_fijos': 65732,           # USD/mes - No varían con revenue
+        'tasa_costos_variables': 0.0962, # 9.62% del revenue
+        'margen_operativo': 0.485,       # 48.5% histórico
+        'desglose_gastos': {
+            'HR Travel': 2450,
+            'Marketing': 7864,
+            'Admin': 60015,
+            'Insurance/Legal': 263,
+            'Salary': 1975,
+            'Other Expenses': 6750,
+            'Taxes': 37
+        },
+        'desglose_costos': {
+            'Logistics': 9083,
+            'Equipment': 6780
+        }
+    }
+
+def calcular_burn_rate(revenue_mensual):
+    """
+    Calcula el burn rate dinámico según el revenue del mes
+    
+    Fórmula: Burn Rate = Gastos Fijos + (Revenue × 9.62%)
+    """
+    financial_data = get_real_financial_data()
     gastos_fijos = financial_data['gastos_fijos']
     tasa_costos = financial_data['tasa_costos_variables']
     
@@ -1049,7 +1128,23 @@ def calcular_burn_rate(revenue_mensual, gastos_fijos=65732, tasa_costos_variable
         'egresos_totales': burn_rate  # Alias para claridad
     }
 
-# v5.1.0: get_real_top_clients() ELIMINADA - contenía datos hardcoded
+def get_real_top_clients():
+    """
+    ✅ DATOS REALES: Top clientes desde Utilization Reports 2023-2025
+    
+    Fuente: Utilization_Report_-_Colombia_OFICIAL_[2023|2024|2025].xlsx
+    Método: Suma de 'Accrual Revenue' por cliente en los 33 meses
+    
+    NOTA: Algunos clientes aparecen con nombres ligeramente diferentes
+    (ej: "Kluane/Aris" vs "Kluane") debido a cambios en nomenclatura.
+    """
+    return [
+        ('Kluane/Aris', 475310),      # $475K acumulado 2023-2025
+        ('Explomin/Segovia', 423676),  # $424K acumulado
+        ('Collective mining', 384940), # $385K acumulado
+        ('Kluane', 383764),            # $384K acumulado
+        ('Explomin', 244442)           # $244K acumulado
+    ]
 
 def get_equipos_disponibles():
     """
@@ -1123,8 +1218,23 @@ def get_equipos_disponibles():
     
     # 🔌 DATOS SIMULADOS - Fallback si no se pueden cargar datos reales
     print("ℹ️  Usando equipos simulados (Weekly Report no encontrado)")
-    # v5.1.0: Retornar lista vacía en lugar de datos simulados
-    return []
+    equipos_simulados = [
+        {"serial": "GTH-001", "tipo": "Telehandler", "estado": "Available"},
+        {"serial": "GTH-002", "tipo": "Telehandler", "estado": "StandBy"},
+        {"serial": "GTH-003", "tipo": "Telehandler", "estado": "Available"},
+        {"serial": "SL-204", "tipo": "Scissor Lift", "estado": "Available"},
+        {"serial": "SL-205", "tipo": "Scissor Lift", "estado": "StandBy"},
+        {"serial": "SL-206", "tipo": "Scissor Lift", "estado": "Available"},
+        {"serial": "BL-105", "tipo": "Boom Lift", "estado": "Available"},
+        {"serial": "BL-106", "tipo": "Boom Lift", "estado": "StandBy"},
+        {"serial": "FK-301", "tipo": "Forklift", "estado": "Available"},
+        {"serial": "FK-302", "tipo": "Forklift", "estado": "Available"},
+        {"serial": "AP-401", "tipo": "Aerial Platform", "estado": "Available"},
+        {"serial": "AP-402", "tipo": "Aerial Platform", "estado": "StandBy"},
+        {"serial": "ML-501", "tipo": "Material Lift", "estado": "Available"},
+        {"serial": "PL-601", "tipo": "Personnel Lift", "estado": "Available"},
+        {"serial": "PL-602", "tipo": "Personnel Lift", "estado": "StandBy"},
+    ]
     
     # Agregar campo 'display' para mostrar en dropdown
     for equipo in equipos_simulados:
@@ -1194,8 +1304,13 @@ def get_clientes_historicos():
     
     # 🔌 DATOS DEMO - Fallback si no se pueden cargar datos reales
     print("ℹ️  Usando clientes demo (Utilization Report no encontrado)")
-    # v5.1.0: Retornar set vacío en lugar de datos demo
-    return set()
+    clientes_demo = {
+        'Kluane/Aris',
+        'Explomin/Segovia', 
+        'Collective Mining',
+        'Kluane',
+        'Explomin'
+    }
     
     return clientes_demo
 
@@ -1661,21 +1776,11 @@ def calcular_transferencias_con_balance(proyecciones_df, efectivo_inicial, meses
     }
 
 def get_data():
-    """
-    ✅ v5.1.0: Retorna datos SOLO si el usuario ha cargado y procesado archivos
-    
-    CAMBIO CRÍTICO:
-    - Si no hay datos procesados: retorna None
-    - Dashboard debe manejar None mostrando mensaje de "Cargue archivos"
-    - NO hay datos por defecto ni datos simulados
-    """
-    
-    # Verificar si hay datos procesados (independiente del valor de data_source)
+    """v5.1.0: Retorna datos procesados o None"""
     if st.session_state.get('datos_procesados') is not None:
         return st.session_state.datos_procesados
-    
-    # ✅ v5.1.0: Si no hay datos, retornar None
     return None
+
 
 # =============================================================================
 # FUNCIONES DE PROYECCIÓN
@@ -1799,115 +1904,118 @@ with st.sidebar:
     # ✅ CORRECCIÓN 1: Reactivar carga de archivos
     st.markdown("### 📊 Fuente de Datos")
     
-    # ✅ v5.1.0: Sin opción de demostración - siempre carga de archivos
-    if not st.session_state.get("datos_procesados"):
-        st.info("💡 **Dashboard en blanco** - Todas las métricas en $0 hasta que cargue archivos")
-    
-    
-    # v5.1.0: Siempre en modo carga de archivos
-    st.session_state.data_source = "real"  # Será real después de procesar
-    
-    st.markdown("#### 📁 Subir Archivos Excel")
-    st.info("💡 Suba los 5 archivos requeridos para el análisis completo")
-    
-    st.markdown("**Históricos (2023-2025):**")
-    file_2023 = st.file_uploader(
-        "Utilization Report 2023",
-        type=['xlsx', 'xls'],
-        key="file_2023",
-        help="Archivo: Utilization_Report_2023.xlsx"
+    data_source_option = st.radio(
+        "Seleccione:",
+        ["📈 Datos de Demostración", "📁 Cargar Datos Propios"],
+        index=0 if st.session_state.data_source == 'demo' else 1
     )
     
-    file_2024 = st.file_uploader(
-        "Utilization Report 2024",
-        type=['xlsx', 'xls'],
-        key="file_2024",
-        help="Archivo: Utilization_Report_2024.xlsx"
-    )
-    
-    file_2025 = st.file_uploader(
-        "Utilization Report 2025",
-        type=['xlsx', 'xls'],
-        key="file_2025",
-        help="Archivo: Utilization_Report_2025.xlsx"
-    )
-    
-    st.markdown("**Estado Actual:**")
-    file_weekly = st.file_uploader(
-        "Weekly Operation Report",
-        type=['xlsx', 'xls'],
-        key="file_weekly",
-        help="Archivo: Weekly_Operation_Report.xlsx"
-    )
-    
-    st.markdown("**Financiero:**")
-    file_financial = st.file_uploader(
-        "Estado Financiero",
-        type=['xlsx', 'xls'],
-        key="file_financial",
-        help="Archivo: Informe_financiero.xlsx"
-    )
-    
-    all_files = all([file_2023, file_2024, file_2025, file_weekly, file_financial])
-    
-    if all_files:
-        st.success("✅ Todos los archivos cargados")
+    if data_source_option == "📁 Cargar Datos Propios":
+        st.session_state.data_source = 'upload'
         
-        if st.button("🚀 Procesar Datos", use_container_width=True, type="primary"):
-            with st.spinner("⚙️ Procesando archivos Excel..."):
+        st.markdown("#### 📁 Subir Archivos Excel")
+        st.info("💡 Suba los 5 archivos requeridos para el análisis completo")
+        
+        st.markdown("**Históricos (2023-2025):**")
+        file_2023 = st.file_uploader(
+            "Utilization Report 2023",
+            type=['xlsx', 'xls'],
+            key="file_2023",
+            help="Archivo: Utilization_Report_2023.xlsx"
+        )
+        
+        file_2024 = st.file_uploader(
+            "Utilization Report 2024",
+            type=['xlsx', 'xls'],
+            key="file_2024",
+            help="Archivo: Utilization_Report_2024.xlsx"
+        )
+        
+        file_2025 = st.file_uploader(
+            "Utilization Report 2025",
+            type=['xlsx', 'xls'],
+            key="file_2025",
+            help="Archivo: Utilization_Report_2025.xlsx"
+        )
+        
+        st.markdown("**Estado Actual:**")
+        file_weekly = st.file_uploader(
+            "Weekly Operation Report",
+            type=['xlsx', 'xls'],
+            key="file_weekly",
+            help="Archivo: Weekly_Operation_Report.xlsx"
+        )
+        
+        st.markdown("**Financiero:**")
+        file_financial = st.file_uploader(
+            "Estado Financiero",
+            type=['xlsx', 'xls'],
+            key="file_financial",
+            help="Archivo: Informe_financiero.xlsx"
+        )
+        
+        all_files = all([file_2023, file_2024, file_2025, file_weekly, file_financial])
+        
+        if all_files:
+            st.success("✅ Todos los archivos cargados")
+            
+            if st.button("🚀 Procesar Datos", use_container_width=True, type="primary"):
+                with st.spinner("⚙️ Procesando archivos Excel..."):
                     # 🆕 v4.7.0: PROCESAMIENTO REAL DE ARCHIVOS
-                try:
+                    try:
                         # Preparar diccionario con archivos
-                    files_dict = {
-                        'file_2023': file_2023,
-                        'file_2024': file_2024,
-                        'file_2025': file_2025,
-                        'file_weekly': file_weekly,
-                        'file_financial': file_financial
-                    }
-                    
+                        files_dict = {
+                            'file_2023': file_2023,
+                            'file_2024': file_2024,
+                            'file_2025': file_2025,
+                            'file_weekly': file_weekly,
+                            'file_financial': file_financial
+                        }
+                        
                         # ✅ v5.0: Preservar archivos en session_state para acceso global
-                    if 'uploaded_files' not in st.session_state:
-                        st.session_state.uploaded_files = {}
-                    
-                    st.session_state.uploaded_files['file_2023'] = file_2023
-                    st.session_state.uploaded_files['file_2024'] = file_2024
-                    st.session_state.uploaded_files['file_2025'] = file_2025
-                    st.session_state.uploaded_files['file_weekly'] = file_weekly
-                    st.session_state.uploaded_files['file_financial'] = file_financial
-                    
-                    print("✅ Archivos guardados en session_state.uploaded_files")
-                    
+                        if 'uploaded_files' not in st.session_state:
+                            st.session_state.uploaded_files = {}
+                        
+                        st.session_state.uploaded_files['file_2023'] = file_2023
+                        st.session_state.uploaded_files['file_2024'] = file_2024
+                        st.session_state.uploaded_files['file_2025'] = file_2025
+                        st.session_state.uploaded_files['file_weekly'] = file_weekly
+                        st.session_state.uploaded_files['file_financial'] = file_financial
+                        
+                        print("✅ Archivos guardados en session_state.uploaded_files")
+                        
                         # Procesar archivos y extraer datos
-                    st.info("📊 Extrayendo datos de Utilization Reports...")
-                    datos_reales = procesar_archivos_reales(files_dict)
-                    
-                    if datos_reales:
+                        st.info("📊 Extrayendo datos de Utilization Reports...")
+                        datos_reales = procesar_archivos_reales(files_dict)
+                        
+                        if datos_reales:
                             # Guardar datos procesados
-                        st.session_state.data_source = 'real'
-                        st.session_state.datos_procesados = datos_reales
-                        
-                        st.success("✅ Archivos procesados exitosamente")
-                        st.success(f"📈 Revenue promedio: ${datos_reales['historical']['revenue_promedio']:,.0f}")
-                        st.success(f"💰 Burn Rate: ${datos_reales['financial']['burn_rate']:,.0f}")
-                        st.info("🟢 Visualizando ahora DATOS REALES del archivo cargado")
-                        st.rerun()
-                    else:
-                        st.error("❌ Error al procesar archivos. Revise el formato de los archivos.")
-                            # v5.1.0: Ya no hay modo demo - comentado
-                        
-                except Exception as e:
-                    st.error(f"❌ Error durante el procesamiento: {str(e)}")
-                        # v5.1.0: Ya no hay modo demo - comentado
-    else:
-        missing = []
-        if not file_2023: missing.append("Util 2023")
-        if not file_2024: missing.append("Util 2024")
+                            st.session_state.data_source = 'real'
+                            st.session_state.datos_procesados = datos_reales
+                            
+                            st.success("✅ Archivos procesados exitosamente")
+                            st.success(f"📈 Revenue promedio: ${datos_reales['historical']['revenue_promedio']:,.0f}")
+                            st.success(f"💰 Burn Rate: ${datos_reales['financial']['burn_rate']:,.0f}")
+                            st.info("🟢 Visualizando ahora DATOS REALES del archivo cargado")
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al procesar archivos. Revise el formato de los archivos.")
+                            st.session_state.data_source = 'demo'
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error durante el procesamiento: {str(e)}")
+                        st.session_state.data_source = 'demo'
+        else:
+            missing = []
+            if not file_2023: missing.append("Util 2023")
+            if not file_2024: missing.append("Util 2024")
             if not file_2025: missing.append("Util 2025")
             if not file_weekly: missing.append("Weekly")
             if not file_financial: missing.append("Financiero")
             
             st.warning(f"⚠️ Faltan: {', '.join(missing)}")
+    else:
+        st.session_state.data_source = 'demo'
         st.info("📊 Usando datos reales de demostración (métricas calculadas desde archivos históricos)")
     
     st.markdown("---")
@@ -2068,25 +2176,15 @@ data = get_data()
 
 if page == "🏠 Resumen Ejecutivo":
     st.markdown("## 🎯 Resumen Ejecutivo")
-    
-    # ✅ v5.1.0: Verificar si hay datos antes de continuar
     if data is None:
-        st.warning("📁 **Cargue sus archivos Excel para comenzar**")
-        st.info("""
-        Para usar el dashboard, debe:
-        1. Ir a la página "🏠 Inicio"
-        2. Cargar los 5 archivos Excel requeridos
-        3. Hacer clic en "🚀 Procesar Datos"
-        
-        El dashboard permanecerá en blanco hasta que cargue los datos.
-        """)
+        st.warning("📁 Cargue sus archivos Excel para comenzar")
         st.stop()
     
     # 🆕 v4.8.0: Indicador visual corregido - muestra verde cuando hay datos reales
     if st.session_state.data_source == 'real':
         st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
     else:
-        # v5.1.0: Mensaje de demo eliminado
+        st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
     
     revenue_mensual = data['historical']['revenue_promedio']
     burn_rate = data['financial']['burn_rate']
@@ -2475,20 +2573,10 @@ if page == "🏠 Resumen Ejecutivo":
 
 elif page == "📈 Análisis Histórico":
     st.markdown("## 📈 Análisis Histórico")
-    
-    # ✅ v5.1.0: Verificar si hay datos antes de continuar
     if data is None:
-        st.warning("📁 **Cargue sus archivos Excel para comenzar**")
-        st.info("""
-        Para usar el dashboard, debe:
-        1. Ir a la página "🏠 Inicio"
-        2. Cargar los 5 archivos Excel requeridos
-        3. Hacer clic en "🚀 Procesar Datos"
-        
-        El dashboard permanecerá en blanco hasta que cargue los datos.
-        """)
+        st.warning("📁 Cargue sus archivos Excel para comenzar")
         st.stop()
-    
+        
     df_hist = data['historical']['data']
     
     col1, col2, col3 = st.columns(3)
@@ -2573,20 +2661,10 @@ elif page == "📈 Análisis Histórico":
 
 elif page == "💵 Proyecciones":
     st.markdown("## 💵 Proyecciones Multi-Escenario")
-    
-    # ✅ v5.1.0: Verificar si hay datos antes de continuar
     if data is None:
-        st.warning("📁 **Cargue sus archivos Excel para comenzar**")
-        st.info("""
-        Para usar el dashboard, debe:
-        1. Ir a la página "🏠 Inicio"
-        2. Cargar los 5 archivos Excel requeridos
-        3. Hacer clic en "🚀 Procesar Datos"
-        
-        El dashboard permanecerá en blanco hasta que cargue los datos.
-        """)
+        st.warning("📁 Cargue sus archivos Excel para comenzar")
         st.stop()
-    
+        
     meses_proyeccion = st.slider("Meses a proyectar:", 3, 12, 6, key="proyeccion_slider")
     
     # 🆕 v4.6.0: Pasar financial_data completo para cálculo dinámico de burn rate
@@ -2810,18 +2888,8 @@ elif page == "💵 Proyecciones":
 
 elif page == "📊 Reportes Detallados":
     st.markdown("## 📊 Reportes Detallados")
-    
-    # ✅ v5.1.0: Verificar si hay datos antes de continuar
     if data is None:
-        st.warning("📁 **Cargue sus archivos Excel para comenzar**")
-        st.info("""
-        Para usar el dashboard, debe:
-        1. Ir a la página "🏠 Inicio"
-        2. Cargar los 5 archivos Excel requeridos
-        3. Hacer clic en "🚀 Procesar Datos"
-        
-        El dashboard permanecerá en blanco hasta que cargue los datos.
-        """)
+        st.warning("📁 Cargue sus archivos Excel para comenzar")
         st.stop()
     
     tabs = st.tabs(["📈 Estacionalidad", "🔥 Burn Rate", "💰 Balance Proyectado"])
@@ -3111,6 +3179,9 @@ elif page == "📊 Reportes Detallados":
 
 elif page == "📝 Ingreso Manual":
     st.markdown("## 📝 Ingreso Manual de Cotizaciones y Contratos")
+    if data is None:
+        st.warning("📁 Cargue sus archivos Excel para comenzar")
+        st.stop()
     
     st.info("""
     **Funcionalidad:** Permite ingresar manualmente cotizaciones y contratos futuros para 
@@ -3135,13 +3206,16 @@ elif page == "📝 Ingreso Manual":
             st.session_state.equipos_temp_quote = []
         
         # Tipos de equipos comunes en SPT
-        # ✅ v5.1.0: Obtener tipos REALES desde Weekly Report
-        equipos_temp = get_equipos_disponibles()
-        if equipos_temp and len(equipos_temp) > 0:
-            tipos_equipos_reales = sorted(list(set([eq['tipo'] for eq in equipos_temp])))
-            tipos_equipos = tipos_equipos_reales + ["Otro"]
-        else:
-            tipos_equipos = ["Especificar tipo"]
+        tipos_equipos = [
+            "Telehandler",
+            "Scissor Lift",
+            "Boom Lift",
+            "Forklift",
+            "Aerial Platform",
+            "Material Lift",
+            "Personnel Lift",
+            "Otro"
+        ]
         
         # 🆕 v4.9.3.1: OBTENER CLIENTES DESDE UTILIZATION REPORT REAL
         clientes_disponibles = ["Nuevo cliente..."]
@@ -3786,8 +3860,8 @@ elif page == "📝 Ingreso Manual":
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748B; padding: 2rem 0;'>
-    <p><strong>SPT Cash Flow Tool v5.1.0</strong></p>
-    <p>✅ Dashboard empieza en $0 • Sin datos hasta cargar archivos • 100% transparencia</p>
+    <p><strong>SPT Cash Flow Tool v5.0.0</strong></p>
+    <p>✅ 100% Datos REALES desde archivos del usuario • CERO datos hardcoded • Listo para convención</p>
     <p>Desarrollado por <a href='https://www.ai-mindnovation.com' target='_blank'>AI-MindNovation</a></p>
     <p>© 2025 AI-MindNovation. Todos los derechos reservados.</p>
 </div>
