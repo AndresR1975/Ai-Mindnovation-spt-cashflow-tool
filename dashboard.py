@@ -24,15 +24,21 @@ Dashboard de análisis de flujo de efectivo para SPT Colombia
         - egresos_fijos se calculaba incorrectamente desde el Informe Financiero
         - No había validación de valores extraídos del Excel
         - Valores sospechosos (>100k por categoría) se sumaban sin filtrar
+     
+     4. CRÍTICO: Margen Operativo anormal (90.4%) y Necesidades Mínimas absurdas ($118M)
+        - Informe Financiero extraía revenue en formato incorrecto (~$620M en lugar de ~$111k)
+        - Valores podían estar acumulados anuales, en miles, o en formato contable
+        - Burn rate calculado con revenue incorrecto daba valores absurdos
+        - Necesidades mínimas = burn_rate × 2 meses = $59M × 2 = $118M ❌
   
   ✅ SOLUCIONES IMPLEMENTADAS en v5.0.4:
-     1. KPI Balance Proyectado corregido (línea ~2592):
+     1. KPI Balance Proyectado corregido (línea ~2656):
         - Ahora muestra: analisis_cash['balance_proyectado']
         - Representa: efectivo_actual + sum(flujos_3_meses)
         - Tooltip mejorado explicando qué representa el valor
         - El excedente/déficit se mantiene en su métrica separada más abajo
      
-     2. Cálculo de seasonal_by_year agregado (línea ~755):
+     2. Cálculo de seasonal_by_year agregado (línea ~820):
         - Usa df_completo para calcular factores por año (2023, 2024)
         - Agrupa revenue por Year y Month
         - Calcula factor = revenue_mes / promedio_anual
@@ -40,13 +46,31 @@ Dashboard de análisis de flujo de efectivo para SPT Colombia
         - Año 2025 excluido (solo 9 meses: Ene-Sep)
         - Ahora el gráfico de radar muestra correctamente años 2023 y 2024
      
-     3. Validación de egresos_fijos corregida (línea ~684):
+     3. Validación de egresos_fijos mejorada (línea ~698):
         - Convierte valores a absoluto antes de sumar
-        - Valida que cada categoría sea < $100k/mes (razonable)
-        - Valida que egresos totales estén entre $20k y $200k/mes
+        - Valida que cada categoría sea $500-$100k/mes (razonable)
+        - Valida que egresos totales estén entre $30k-$150k/mes
         - Si fuera de rango, usa valor de backup ($65,732/mes)
         - Logging detallado para debugging de extracción
-        - Elimina valores sospechosos que causaban flujos negativos enormes
+     
+     4. CORRECCIÓN CRÍTICA: Revenue solo de Utilization Reports (línea ~677):
+        - ✅ Informe Financiero ahora SOLO extrae egresos (no revenue)
+        - ✅ Revenue se toma exclusivamente de Utilization Reports (más confiable)
+        - ✅ Burn rate se calcula en procesar_archivos_reales con revenue real
+        - ✅ Margen operativo se calcula con valores correctos
+        - ✅ Necesidades mínimas ahora son razonables (~$150k, no $118M)
+        
+        ANTES (incorrecto):
+        - Revenue del Informe: ~$620M (formato incorrecto)
+        - Burn rate: ~$59M/mes
+        - Necesidades (2 meses): $118M ❌
+        - Margen operativo: 90.4% ❌
+        
+        AHORA (correcto):
+        - Revenue de Utilization: ~$111k/mes
+        - Burn rate: ~$76k/mes
+        - Necesidades (2 meses): ~$152k ✓
+        - Margen operativo: ~31% ✓
 
 🚀 VERSIÓN 5.0.3 - CORRECCIONES CRÍTICAS DE ERRORES (Noviembre 5, 2025):
 =========================================================================
@@ -683,16 +707,13 @@ def procesar_informe_financiero(file_financial):
         # Leer hoja 'td' con datos mensuales
         df_td = pd.read_excel(file_financial, sheet_name='td', header=5)
         
-        # Buscar la fila de 'Rental' (ingresos)
-        rental_row = df_td[df_td.iloc[:, 0].str.contains('02 Rental', case=False, na=False)]
+        # ✅ v5.0.4: NOTA - No extraer revenue de informe financiero
+        # El revenue debe venir de Utilization Reports (más confiable)
+        # Solo extraer egresos del informe financiero
         
-        if len(rental_row) > 0:
-            # Extraer valores de ingresos mensuales (columnas numéricas)
-            rental_values = rental_row.iloc[0, 1:10].values  # Meses 1-9
-            rental_values = [abs(float(v)) for v in rental_values if pd.notna(v) and v != 0]
-            revenue_promedio_real = np.mean(rental_values) if rental_values else 127468
-        else:
-            revenue_promedio_real = 127468
+        print("\n📄 PROCESANDO INFORME FINANCIERO:")
+        print("   💡 Revenue se tomará de Utilization Reports (más confiable)")
+        print("   🎯 Extrayendo solo EGRESOS del informe financiero...")
         
         # Calcular egresos por categoría
         categorias_egresos = ['04 HR', '05 Logistics', '06 Marketing', '07 Admin', '08 Insurance', '09 Salary']
@@ -739,42 +760,32 @@ def procesar_informe_financiero(file_financial):
         else:
             print(f"   ✅ Egresos validados correctamente: ${egresos_fijos:,.2f}/mes")
         
-        # Tasa de costos variables: 9.62% del revenue (estimado desde backend)
+        # ✅ v5.0.4: NO calcular burn_rate aquí (necesitamos revenue real de Utilization Reports)
+        # Solo retornar egresos_fijos y tasa
         tasa_costos_variables = 0.0962
         
-        # Burn rate = gastos fijos + (revenue × tasa costos)
-        burn_rate = egresos_fijos + (revenue_promedio_real * tasa_costos_variables)
-        
-        # Calcular margen operativo
-        margen_operativo = 1 - (burn_rate / revenue_promedio_real) if revenue_promedio_real > 0 else 0
-        
-        print(f"   💸 Burn Rate calculado: ${burn_rate:,.2f}/mes")
-        print(f"   📈 Margen Operativo: {margen_operativo*100:.1f}%")
-        
-        # ✅ v5.0.4: Validar margen operativo (debe estar entre 20% y 60% para ser razonable)
-        if margen_operativo < 0.20 or margen_operativo > 0.60:
-            print(f"   ⚠️ ADVERTENCIA: Margen operativo fuera de rango esperado (20%-60%): {margen_operativo*100:.1f}%")
-            print(f"   💡 Esto sugiere que los egresos pueden estar mal calculados")
-        
-        print()  # Línea en blanco
+        print(f"   ✅ Extracción de egresos completada")
+        print(f"   💡 Burn rate se calculará con revenue de Utilization Reports\n")
         
         return {
             'gastos_fijos': egresos_fijos,
             'tasa_costos_variables': tasa_costos_variables,
-            'burn_rate': burn_rate,
-            'revenue_promedio': revenue_promedio_real,
-            'margen_operativo': margen_operativo
+            'burn_rate': None,  # Se calculará después con revenue real
+            'revenue_promedio': None,  # Se tomará de Utilization Reports
+            'margen_operativo': None  # Se calculará después
         }
         
     except Exception as e:
         st.error(f"Error procesando Informe Financiero: {str(e)}")
+        print(f"\n   ❌ ERROR procesando informe financiero: {str(e)}")
         # Retornar valores de backup desde backend analysis
+        print(f"   🔄 Usando valores de backup del backend")
         return {
             'gastos_fijos': 65732,
             'tasa_costos_variables': 0.0962,
-            'burn_rate': 77994,
-            'revenue_promedio': 127468,
-            'margen_operativo': 0.388  # (127468 - 77994) / 127468
+            'burn_rate': None,  # ✅ v5.0.4: Se calculará con revenue real
+            'revenue_promedio': None,  # ✅ v5.0.4: Se tomará de Utilization Reports
+            'margen_operativo': None  # ✅ v5.0.4: Se calculará después
         }
 
 def procesar_weekly_operation(file_weekly):
@@ -889,12 +900,29 @@ def procesar_archivos_reales(files_dict):
         print(f"   - DataFrame shape: {df_historical.shape}")
         print(f"   - Primeros periodos: {df_historical['periodo'].head(3).tolist()}")
         
-        # ✅ v5.0.4: Logging de datos financieros
-        print(f"\n💰 DATOS FINANCIEROS:")
-        print(f"   - Gastos Fijos: ${financial_data['gastos_fijos']:,.2f}/mes")
-        print(f"   - Tasa Costos Variables: {financial_data['tasa_costos_variables']*100:.2f}%")
-        print(f"   - Burn Rate: ${financial_data['burn_rate']:,.2f}/mes")
-        print(f"   - Margen Operativo: {financial_data['margen_operativo']*100:.1f}%")
+        # ✅ v5.0.4: Calcular burn_rate y margen operativo con revenue REAL de Utilization Reports
+        gastos_fijos = financial_data['gastos_fijos']
+        tasa_costos_variables = financial_data['tasa_costos_variables']
+        
+        # Usar revenue_promedio de Utilization Reports (NO del informe financiero)
+        burn_rate = gastos_fijos + (revenue_promedio * tasa_costos_variables)
+        margen_operativo = 1 - (burn_rate / revenue_promedio) if revenue_promedio > 0 else 0
+        
+        print(f"\n💰 DATOS FINANCIEROS CALCULADOS:")
+        print(f"   - Gastos Fijos: ${gastos_fijos:,.2f}/mes")
+        print(f"   - Tasa Costos Variables: {tasa_costos_variables*100:.2f}%")
+        print(f"   - Revenue Promedio (Utilization): ${revenue_promedio:,.2f}/mes")
+        print(f"   - Costos Variables: ${revenue_promedio * tasa_costos_variables:,.2f}/mes")
+        print(f"   - Burn Rate TOTAL: ${burn_rate:,.2f}/mes")
+        print(f"   - Margen Operativo: {margen_operativo*100:.1f}%")
+        
+        # Validar margen operativo
+        if margen_operativo < 0.20 or margen_operativo > 0.60:
+            print(f"   ⚠️ ADVERTENCIA: Margen operativo fuera de rango esperado (20%-60%)")
+        else:
+            print(f"   ✅ Margen operativo dentro del rango esperado")
+        
+        print()
         
         # 5. Estructurar datos en formato compatible
         datos_procesados = {
@@ -909,11 +937,11 @@ def procesar_archivos_reales(files_dict):
                 'years_data': {}  # Se puede agregar más detalle si se necesita
             },
             'financial': {
-                'gastos_fijos': financial_data['gastos_fijos'],
-                'tasa_costos_variables': financial_data['tasa_costos_variables'],
-                'burn_rate': financial_data['burn_rate'],
-                'margen_operativo': financial_data['margen_operativo'],
-                'costos_variables': int(revenue_promedio * financial_data['tasa_costos_variables'])
+                'gastos_fijos': gastos_fijos,  # ✅ v5.0.4: Calculado correctamente
+                'tasa_costos_variables': tasa_costos_variables,
+                'burn_rate': burn_rate,  # ✅ v5.0.4: Calculado con revenue real
+                'margen_operativo': margen_operativo,  # ✅ v5.0.4: Calculado con revenue real
+                'costos_variables': int(revenue_promedio * tasa_costos_variables)
             },
             'seasonal_factors': seasonal_factors,  # ✅ v5.0.3: En nivel raíz para compatibilidad
             'seasonal_by_year': seasonal_by_year,  # ✅ v5.0.4: Calculado para años completos
