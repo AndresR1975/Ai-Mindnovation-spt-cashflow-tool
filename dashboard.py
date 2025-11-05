@@ -1,9 +1,9 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.0
+SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.1
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-🚀 VERSIÓN 5.0.0 - INTEGRACIÓN COMPLETA CON DATOS REALES (Noviembre 4, 2025):
+🚀 VERSIÓN 5.0.1 - DATOS REALES HARDCODED (Noviembre 4, 2025) - INTEGRACIÓN COMPLETA CON DATOS REALES (Noviembre 4, 2025):
 ==============================================================================
 
 ✅ ELIMINACIÓN TOTAL DE DATOS HARDCODED:
@@ -1130,117 +1130,153 @@ def calcular_burn_rate(revenue_mensual):
 
 def get_real_top_clients():
     """
-    ✅ DATOS REALES: Top clientes desde Utilization Reports 2023-2025
+    ✅ v5.0.1: Lista COMPLETA de clientes reales
     
-    Fuente: Utilization_Report_-_Colombia_OFICIAL_[2023|2024|2025].xlsx
-    Método: Suma de 'Accrual Revenue' por cliente en los 33 meses
-    
-    NOTA: Algunos clientes aparecen con nombres ligeramente diferentes
-    (ej: "Kluane/Aris" vs "Kluane") debido a cambios en nomenclatura.
+    Fuente: Utilization Reports 2023-2025 (columna Client)
+    Total: 68 clientes únicos
+    Consolidado por mayúsculas/minúsculas
     """
     return [
-        ('Kluane/Aris', 475310),      # $475K acumulado 2023-2025
-        ('Explomin/Segovia', 423676),  # $424K acumulado
-        ('Collective mining', 384940), # $385K acumulado
-        ('Kluane', 383764),            # $384K acumulado
-        ('Explomin', 244442)           # $244K acumulado
+        "Alpha Drilling",
+        "Alpha Drilling/ Frontino",
+        "Alpha Drilling/ Urrao",
+        "Antioquia Gold",
+        "Antioquiagold",
+        "Aris Mining",
+        "Aziwell",
+        "Back Up",
+        "Brinsa",
+        "Buritica/c2",
+        "C2",
+        "C2/buritica",
+        "Cabo Drilling",
+        "Century",
+        "Collective Mining",
+        "Collective Mining/kluane",
+        "Consorcio Cys",
+        "Ecodrill",
+        "Ecodrill /segovia",
+        "España",
+        "Explomin",
+        "Explomin -zijin Continentald Gold",
+        "Explomin -zijin Continentald Gold/stand By",
+        "Explomin Buriticá",
+        "Explomin Segovia",
+        "Explomin-marmato",
+        "Explomin/buriticá",
+        "Explomin/marmato",
+        "Explomin/segovia",
+        "Guacamaya",
+        "Guacamayas",
+        "Ionos",
+        "Kluane",
+        "Kluane - Quebradona",
+        "Kluane Colombia",
+        "Kluane-quebradona",
+        "Kluane/ Collective Mining",
+        "Kluane/aris",
+        "Kluane/collective Mining",
+        "Kluane/mocoa",
+        "Kluane/quebradona",
+        "Kluane/segovia",
+        "Kodiak- Guajira",
+        "Logan",
+        "Logan Drilling (choco)",
+        "Medellin",
+        "Medellin/ Bakc Up",
+        "Miner",
+        "Minera El Roble",
+        "Minerales Provenza",
+        "Miranda Gold (kluane)",
+        "Neiva",
+        "Neiva - Huila",
+        "Office",
+        "Oficina",
+        "Out Of Services",
+        "Perfotec",
+        "Perfotec ( Brinsa )",
+        "Petrodatos",
+        "Quantos",
+        "San Juan, Guajira",
+        "Setip - Petrodatos",
+        "Setip Y Ionos",
+        "Smart Technology Tools Sas",
+        "South America",
+        "Spt Colombia",
+        "Weatherford",
+        "Zancudo/buritica"
     ]
 
 def get_equipos_disponibles():
     """
-    ✅ v5.0: Obtiene equipos disponibles PRIORIZANDO datos reales del usuario
+    ✅ v5.0.1: Equipos REALES disponibles para contratos
     
-    PRIORIDAD DE CARGA (v5.0):
-    1. PRIMERO: Intenta extraer desde st.session_state.data (archivos uploaded)
-    2. SEGUNDO: Intenta cargar desde WeeklyReportParser (directorios locales)
-    3. FALLBACK: Usa datos simulados si todo falla
+    Fuente: Weekly Operation Report (Equipment + Serial Number)
+    Condición: Status = Standby o Backup
+    Total: 28 equipos disponibles
     
-    ESTADOS INCLUIDOS:
-    - Available: Equipos listos para asignación inmediata
-    - StandBy: Equipos en espera, disponibles para contratos futuros
-    - Backup: Equipos de respaldo disponibles
-    
-    FORMATO DE RETORNO:
-    Lista de diccionarios con:
-    - serial: Serial del equipo (ej: "TH-2002-001")
-    - tipo: Tipo de equipo (ej: "Telehandler")
-    - estado: Estado actual ("Available", "StandBy" o "Backup")
-    - display: Texto para mostrar en dropdown (ej: "TH-2002-001 - Telehandler (Available)")
-    
-    🔌 CONEXIÓN CON WEEKLY REPORT:
-    Extrae de columnas: Equipment, Serial Number, Status
+    Formato: Serial - Equipment (Status)
     """
-    
-    # ✅ v5.0: PRIORIDAD 1 - Intentar desde session_state (archivos uploaded)
-    if 'data' in st.session_state and st.session_state.data:
-        print("🔍 Intentando cargar equipos desde session_state...")
-        equipos_reales = extraer_equipos_disponibles_from_data(st.session_state.data)
-        if equipos_reales and len(equipos_reales) > 0:
-            print(f"✅ {len(equipos_reales)} equipos disponibles cargados desde Weekly Report (uploaded)")
-            return equipos_reales
-        else:
-            print("⚠️ No se pudieron extraer equipos de session_state")
-    
-    equipos_reales = []
-    
-    # PRIORIDAD 2 - Intentar cargar desde archivo real en directorios locales
-    if PARSERS_DISPONIBLES:
-        try:
-            # Buscar archivo Weekly Report
-            inputs_dir = PROJECT_DIR / "data" / "inputs"
-            if inputs_dir.exists():
-                weekly_files = list(inputs_dir.glob("*Weekly*Report*.xlsx"))
-                
-                if weekly_files:
-                    weekly_file = weekly_files[0]  # Tomar el primero que encuentre
-                    print(f"📄 Cargando equipos desde: {weekly_file.name}")
-                    
-                    # Usar parser para cargar equipos
-                    parser = WeeklyReportParser(str(weekly_file))
-                    equipos = parser.get_equipos_disponibles()  # Retorna equipos Available y StandBy
-                    
-                    # Convertir a formato esperado
-                    for eq in equipos:
-                        equipos_reales.append({
-                            'serial': eq.serial_number,
-                            'tipo': eq.tipo,
-                            'estado': eq.status.value,
-                            'display': f"{eq.serial_number} - {eq.tipo} ({eq.status.value})"
-                        })
-                    
-                    if equipos_reales:
-                        print(f"✅ {len(equipos_reales)} equipos disponibles cargados desde Weekly Report")
-                        return equipos_reales
-                    
-        except Exception as e:
-            print(f"⚠️ Error cargando equipos reales: {str(e)}")
-            print("   Usando datos simulados como fallback")
-    
-    # 🔌 DATOS SIMULADOS - Fallback si no se pueden cargar datos reales
-    print("ℹ️  Usando equipos simulados (Weekly Report no encontrado)")
-    equipos_simulados = [
-        {"serial": "GTH-001", "tipo": "Telehandler", "estado": "Available"},
-        {"serial": "GTH-002", "tipo": "Telehandler", "estado": "StandBy"},
-        {"serial": "GTH-003", "tipo": "Telehandler", "estado": "Available"},
-        {"serial": "SL-204", "tipo": "Scissor Lift", "estado": "Available"},
-        {"serial": "SL-205", "tipo": "Scissor Lift", "estado": "StandBy"},
-        {"serial": "SL-206", "tipo": "Scissor Lift", "estado": "Available"},
-        {"serial": "BL-105", "tipo": "Boom Lift", "estado": "Available"},
-        {"serial": "BL-106", "tipo": "Boom Lift", "estado": "StandBy"},
-        {"serial": "FK-301", "tipo": "Forklift", "estado": "Available"},
-        {"serial": "FK-302", "tipo": "Forklift", "estado": "Available"},
-        {"serial": "AP-401", "tipo": "Aerial Platform", "estado": "Available"},
-        {"serial": "AP-402", "tipo": "Aerial Platform", "estado": "StandBy"},
-        {"serial": "ML-501", "tipo": "Material Lift", "estado": "Available"},
-        {"serial": "PL-601", "tipo": "Personnel Lift", "estado": "Available"},
-        {"serial": "PL-602", "tipo": "Personnel Lift", "estado": "StandBy"},
+    equipos_reales = [
+        {"serial": "453", "tipo": "CoreMaster CM3", "estado": "Standby", "display": "453 - CoreMaster CM3 (Standby)"},
+        {"serial": "724", "tipo": "CoreMaster CM3", "estado": "Standby", "display": "724 - CoreMaster CM3 (Standby)"},
+        {"serial": "725", "tipo": "CoreMaster CM3", "estado": "Backup", "display": "725 - CoreMaster CM3 (Backup)"},
+        {"serial": "758", "tipo": "CoreMaster CM3", "estado": "Backup", "display": "758 - CoreMaster CM3 (Backup)"},
+        {"serial": "766", "tipo": "CoreMaster CM3", "estado": "Backup", "display": "766 - CoreMaster CM3 (Backup)"},
+        {"serial": "1820", "tipo": "Gyro RigAligner V4", "estado": "Backup", "display": "1820 - Gyro RigAligner V4 (Backup)"},
+        {"serial": "1819", "tipo": "Gyro RigAligner V4", "estado": "Standby", "display": "1819 - Gyro RigAligner V4 (Standby)"},
+        {"serial": "2004", "tipo": "Gyro RigAligner V4", "estado": "Standby", "display": "2004 - Gyro RigAligner V4 (Standby)"},
+        {"serial": "2035", "tipo": "Gyro RigAligner V4", "estado": "Backup", "display": "2035 - Gyro RigAligner V4 (Backup)"},
+        {"serial": "2463", "tipo": "Gyro RigAligner V4", "estado": "Standby", "display": "2463 - Gyro RigAligner V4 (Standby)"},
+        {"serial": "2346", "tipo": "GyroMaster", "estado": "Backup", "display": "2346 - GyroMaster (Backup)"},
+        {"serial": "2358", "tipo": "GyroMaster", "estado": "Backup", "display": "2358 - GyroMaster (Backup)"},
+        {"serial": "2002", "tipo": "GyroMaster", "estado": "Standby", "display": "2002 - GyroMaster (Standby)"},
+        {"serial": "1927", "tipo": "GyroMaster", "estado": "Backup", "display": "1927 - GyroMaster (Backup)"},
+        {"serial": "2303", "tipo": "GyroTracer", "estado": "Standby", "display": "2303 - GyroTracer (Standby)"},
+        {"serial": "2293", "tipo": "GyroTracer", "estado": "Standby", "display": "2293 - GyroTracer (Standby)"},
+        {"serial": "2321", "tipo": "GyroTracer", "estado": "Standby", "display": "2321 - GyroTracer (Standby)"},
+        {"serial": "2300", "tipo": "GyroMaster", "estado": "Backup", "display": "2300 - GyroMaster (Backup)"},
+        {"serial": "2148", "tipo": "GyroMaster", "estado": "Standby", "display": "2148 - GyroMaster (Standby)"},
+        {"serial": "HSM39", "tipo": "GyroTracer 150°C", "estado": "Standby", "display": "HSM39 - GyroTracer 150°C (Standby)"},
+        {"serial": "HSM37", "tipo": "GyroTracer 150°C", "estado": "Standby", "display": "HSM37 - GyroTracer 150°C (Standby)"},
+        {"serial": "MM120", "tipo": "MagCruiser", "estado": "Backup", "display": "MM120 - MagCruiser (Backup)"},
+        {"serial": "MM044", "tipo": "MagCruiser", "estado": "Standby", "display": "MM044 - MagCruiser (Standby)"},
+        {"serial": "MM004", "tipo": "MagCruiser", "estado": "Standby", "display": "MM004 - MagCruiser (Standby)"},
+        {"serial": "500AF3010006615", "tipo": "StructMaster", "estado": "Standby", "display": "500AF3010006615 - StructMaster (Standby)"},
+        {"serial": "5008AF3010006949", "tipo": "StructMaster", "estado": "Standby", "display": "5008AF3010006949 - StructMaster (Standby)"},
+        {"serial": "5008AF3010008377", "tipo": "StructMaster", "estado": "Standby", "display": "5008AF3010008377 - StructMaster (Standby)"},
+        {"serial": "5008AF3010008397", "tipo": "StructMaster", "estado": "Standby", "display": "5008AF3010008397 - StructMaster (Standby)"}
     ]
+    return equipos_reales
+
+
+
+def get_tarifa_sugerida(tipo_equipo):
+    """
+    ✅ v5.0.1: Tarifas diarias REALES por tipo de equipo
     
-    # Agregar campo 'display' para mostrar en dropdown
-    for equipo in equipos_simulados:
-        equipo['display'] = f"{equipo['serial']} - {equipo['tipo']} ({equipo['estado']})"
+    Fuente: Utilization Report 2025 (columna Rental Rate)
+    Cálculo: Promedio de últimos 5 registros de 2025
     
-    return equipos_simulados
+    Args:
+        tipo_equipo: Tipo de equipo (string)
+    
+    Returns:
+        Tarifa diaria sugerida (int) o 0 si no se encuentra
+    """
+    tarifas_reales = {
+        "CoreMaster CM3": 2200,
+        "CoreMaster CM4": 2200,
+        "Gyro RigAligner V3": 2700,
+        "Gyro RigAligner V4": 2700,
+        "GyroMaster": 7050,
+        "GyroTracer": 6200,
+        "GyroTracer 150°C": 5000,
+        "Gyrotracer": 5000,
+        "MagCruiser": 2454,
+        "StructMaster": 1500
+    }
+    return tarifas_reales.get(tipo_equipo, 0)
 
 def get_clientes_historicos():
     """
@@ -3242,13 +3278,25 @@ elif page == "📝 Ingreso Manual":
         
         # Tipos de equipos comunes en SPT
         tipos_equipos = [
-            "Telehandler",
-            "Scissor Lift",
-            "Boom Lift",
-            "Forklift",
-            "Aerial Platform",
-            "Material Lift",
-            "Personnel Lift",
+            "CoreMaster CM3",
+            "CoreMaster CM4",
+            "CoreMaster V2",
+            "CoreMaster V3",
+            "Gyro RigAligner V3",
+            "Gyro RigAligner V4",
+            "GyroMaster",
+            "GyroMasterr",
+            "GyroTracer",
+            "GyroTracer 105°C",
+            "GyroTracer 150°C",
+            "Gyrologic",
+            "Gyrotracer",
+            "MagCruiser",
+            "Magcruiser",
+            "Mining",
+            "O&G",
+            "RigAligner",
+            "StructMaster",
             "Otro"
         ]
         
