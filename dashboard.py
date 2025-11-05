@@ -8,18 +8,28 @@ Dashboard de análisis de flujo de efectivo para SPT Colombia
 
 🎯 ELIMINACIÓN TOTAL DE COMPONENTES ALEATORIOS:
   
-  ❌ PROBLEMA IDENTIFICADO en v5.0.2:
-     - generar_datos_historicos() usaba np.random.uniform() para "ruido natural"
-     - calcular_proyeccion_3_meses() usaba np.random.uniform() para "variación"
-     - Los escenarios mostraban valores diferentes en cada refresh
-     - Escenario Optimista a veces mostraba menos ingresos que Moderado
+  ❌ PROBLEMAS IDENTIFICADOS en v5.0.2:
+     1. generar_datos_historicos() usaba np.random.uniform() para "ruido natural"
+     2. calcular_proyeccion_3_meses() usaba np.random.uniform() para "variación"
+     3. Resumen Ejecutivo usaba calcular_proyeccion_3_meses() que NO consideraba:
+        - El escenario seleccionado (Conservador/Moderado/Optimista)
+        - Los contratos manuales agregados
+        - Las cotizaciones manuales agregadas
+     
+     Resultado: Los escenarios mostraban valores diferentes en cada refresh y no 
+     respondían a cambios de escenario ni contratos/cotizaciones
   
-  ✅ SOLUCIÓN en v5.0.3:
-     - Eliminado np.random de generar_datos_historicos() (línea 1340-1341)
-     - Eliminado np.random de calcular_proyeccion_3_meses() (línea 1375)
-     - Proyecciones ahora son 100% determinísticas y reproducibles
-     - Los escenarios mantienen su jerarquía correcta siempre
-     - Datos históricos usan solo tendencia + estacionalidad real
+  ✅ SOLUCIONES en v5.0.3:
+     1. Eliminado np.random de generar_datos_historicos() (línea 1340-1341)
+     2. Eliminado np.random de calcular_proyeccion_3_meses() (línea 1375)
+     3. Resumen Ejecutivo ahora usa generar_proyecciones_por_escenario() (línea 2299-2306)
+        - Considera el escenario seleccionado correctamente
+        - Incluye contratos activos del session_state
+        - Incluye cotizaciones con probabilidad del session_state
+        - Escenario Optimista incluye 50% de equipos disponibles
+     
+     Resultado: Proyecciones 100% determinísticas y reproducibles que responden 
+     correctamente a cambios de escenario y contratos/cotizaciones manuales
 
 ✅ ELIMINACIÓN TOTAL DE DATOS HARDCODED:
 
@@ -2296,8 +2306,15 @@ if page == "🏠 Resumen Ejecutivo":
     revenue_mensual = data['historical']['revenue_promedio']
     burn_rate = data['financial']['burn_rate']
     
-    # 🆕 v4.6.0: Pasar financial_data completo para cálculo dinámico
-    flujos_proyectados = calcular_proyeccion_3_meses(revenue_mensual, data['financial'])
+    # ✅ v5.0.3: Usar proyecciones por escenario que incluyen contratos/cotizaciones
+    proyecciones_df = generar_proyecciones_por_escenario(
+        revenue_mensual,
+        data['financial'],
+        meses=3,
+        escenario=st.session_state.escenario_proyeccion
+    )
+    flujos_proyectados = proyecciones_df['flujo_neto'].tolist()
+    
     runway = calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate)
     # 🆕 v4.6.0: Pasar meses_colchon configurado por el usuario
     analisis_cash = calcular_necesidades_excedentes_mejorado(
