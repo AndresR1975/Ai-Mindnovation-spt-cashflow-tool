@@ -2369,15 +2369,19 @@ if page == "🏠 Resumen Ejecutivo":
         """)
     
     with col2:
-        st.markdown("### 🎯 Top 5 Clientes")
+        st.markdown("### 👥 Clientes Activos")
         
         top_clients = data['historical']['top_clients']
-        df_clients = pd.DataFrame(top_clients, columns=['Cliente', 'Revenue (USD)'])
-        df_clients['Revenue (USD)'] = df_clients['Revenue (USD)'].apply(lambda x: f"${x:,.0f}")
         
-        st.dataframe(df_clients, use_container_width=True, hide_index=True)
+        # Mostrar primeros 10 clientes
+        st.markdown("**Principales clientes:**")
+        for i, cliente in enumerate(top_clients[:10], 1):
+            st.text(f"{i}. {cliente}")
         
-        st.caption("✅ Datos reales desde Utilization Reports 2023-2025")
+        if len(top_clients) > 10:
+            st.caption(f"... y {len(top_clients) - 10} clientes más")
+        
+        st.caption(f"✅ Total: {len(top_clients)} clientes únicos (Utilization Reports 2023-2025)")
     
     # Proyección 3 meses
     st.markdown("### 📈 Proyección de Flujo (3 meses)")
