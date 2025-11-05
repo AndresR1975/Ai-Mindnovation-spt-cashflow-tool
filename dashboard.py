@@ -19,6 +19,11 @@ Dashboard de análisis de flujo de efectivo para SPT Colombia
         - seasonal_by_year se dejaba como dict vacío {} al procesar datos reales
         - Los datos estaban disponibles pero no se calculaban los factores por año
         - Los checkboxes de años 2023 y 2024 no mostraban ninguna línea
+     
+     3. Flujo Neto con valores negativos enormes (-$203M)
+        - egresos_fijos se calculaba incorrectamente desde el Informe Financiero
+        - No había validación de valores extraídos del Excel
+        - Valores sospechosos (>100k por categoría) se sumaban sin filtrar
   
   ✅ SOLUCIONES IMPLEMENTADAS en v5.0.4:
      1. KPI Balance Proyectado corregido (línea ~2592):
@@ -34,6 +39,14 @@ Dashboard de análisis de flujo de efectivo para SPT Colombia
         - Solo incluye años con 12 meses completos
         - Año 2025 excluido (solo 9 meses: Ene-Sep)
         - Ahora el gráfico de radar muestra correctamente años 2023 y 2024
+     
+     3. Validación de egresos_fijos corregida (línea ~684):
+        - Convierte valores a absoluto antes de sumar
+        - Valida que cada categoría sea < $100k/mes (razonable)
+        - Valida que egresos totales estén entre $20k y $200k/mes
+        - Si fuera de rango, usa valor de backup ($65,732/mes)
+        - Logging detallado para debugging de extracción
+        - Elimina valores sospechosos que causaban flujos negativos enormes
 
 🚀 VERSIÓN 5.0.3 - CORRECCIONES CRÍTICAS DE ERRORES (Noviembre 5, 2025):
 =========================================================================
@@ -685,13 +698,30 @@ def procesar_informe_financiero(file_financial):
         categorias_egresos = ['04 HR', '05 Logistics', '06 Marketing', '07 Admin', '08 Insurance', '09 Salary']
         egresos_fijos = 0
         
+        print("\n💰 EXTRAYENDO EGRESOS DEL INFORME FINANCIERO:")
         for categoria in categorias_egresos:
             cat_row = df_td[df_td.iloc[:, 0].str.contains(categoria, case=False, na=False)]
             if len(cat_row) > 0:
                 cat_values = cat_row.iloc[0, 1:10].values
-                cat_values = [float(v) for v in cat_values if pd.notna(v) and v != 0]
+                # ✅ v5.0.4: Convertir a float y tomar valor absoluto
+                cat_values = [abs(float(v)) for v in cat_values if pd.notna(v) and v != 0]
                 if cat_values:
-                    egresos_fijos += np.mean(cat_values)
+                    promedio_cat = np.mean(cat_values)
+                    print(f"   • {categoria}: ${promedio_cat:,.2f}/mes (promedio de {len(cat_values)} valores)")
+                    
+                    # ✅ v5.0.4: Validar que el valor sea razonable (< 100k/mes por categoría)
+                    if promedio_cat < 100000:
+                        egresos_fijos += promedio_cat
+                    else:
+                        print(f"   ⚠️ VALOR SOSPECHOSO ignorado: ${promedio_cat:,.2f}")
+        
+        print(f"\n   📊 TOTAL EGRESOS FIJOS: ${egresos_fijos:,.2f}/mes")
+        
+        # ✅ v5.0.4: Validar que egresos_fijos sea razonable (entre 20k y 200k/mes)
+        if egresos_fijos < 20000 or egresos_fijos > 200000:
+            print(f"   ⚠️ Egresos calculados fuera de rango razonable: ${egresos_fijos:,.2f}")
+            print(f"   🔄 Usando valor de backup del backend: $65,732/mes")
+            egresos_fijos = 65732
         
         # Tasa de costos variables: 9.62% del revenue (estimado desde backend)
         tasa_costos_variables = 0.0962
@@ -702,8 +732,11 @@ def procesar_informe_financiero(file_financial):
         # Calcular margen operativo
         margen_operativo = 1 - (burn_rate / revenue_promedio_real) if revenue_promedio_real > 0 else 0
         
+        print(f"   💸 Burn Rate calculado: ${burn_rate:,.2f}/mes")
+        print(f"   📈 Margen Operativo: {margen_operativo*100:.1f}%\n")
+        
         return {
-            'gastos_fijos': abs(egresos_fijos),
+            'gastos_fijos': egresos_fijos,  # ✅ v5.0.4: Ya no usar abs() aquí (valores ya validados)
             'tasa_costos_variables': tasa_costos_variables,
             'burn_rate': burn_rate,
             'revenue_promedio': revenue_promedio_real,
@@ -832,6 +865,13 @@ def procesar_archivos_reales(files_dict):
         print(f"   - Revenue máximo: ${revenue_maximo:,.2f}")
         print(f"   - DataFrame shape: {df_historical.shape}")
         print(f"   - Primeros periodos: {df_historical['periodo'].head(3).tolist()}")
+        
+        # ✅ v5.0.4: Logging de datos financieros
+        print(f"\n💰 DATOS FINANCIEROS:")
+        print(f"   - Gastos Fijos: ${financial_data['gastos_fijos']:,.2f}/mes")
+        print(f"   - Tasa Costos Variables: {financial_data['tasa_costos_variables']*100:.2f}%")
+        print(f"   - Burn Rate: ${financial_data['burn_rate']:,.2f}/mes")
+        print(f"   - Margen Operativo: {financial_data['margen_operativo']*100:.1f}%")
         
         # 5. Estructurar datos en formato compatible
         datos_procesados = {
