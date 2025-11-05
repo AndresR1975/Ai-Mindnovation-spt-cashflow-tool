@@ -3,8 +3,51 @@ SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.3
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-🚀 VERSIÓN 5.0.3 - DATOS REALES + INICIO EN BLANCO (Noviembre 5, 2025):
+🚀 VERSIÓN 5.0.3 - CORRECCIONES CRÍTICAS DE ERRORES (Noviembre 5, 2025):
 =========================================================================
+
+🐛 CORRECCIONES DE BUGS IDENTIFICADOS POR USUARIO:
+==================================================
+
+  ❌ PROBLEMAS REPORTADOS EN PRUEBAS:
+     1. ZeroDivisionError al inicio (línea 1531, 2502)
+        - Division por cero en calcular_runway_mejorado cuando burn_rate = 0
+        - Ocurría en estado inicial 'none' con todos los valores en $0
+     
+     2. Balance Proyectado con valores incorrectos
+        - Mostraba valores negativos enormes (-$1.1B)
+        - generar_proyecciones_por_escenario calculaba flujos cuando todo = 0
+        - Necesitaba protección para retornar $0 cuando no hay datos
+     
+     3. Top 5 Clientes 2025 vacío
+        - top_clients era dict, pero visualización esperaba list of tuples
+        - Conversión incorrecta de formato
+     
+     4. KeyError en gráfico de estacionalidad (línea 3235)
+        - seasonal_factors con números (1-12) vs nombres ('Enero', 'Febrero')
+        - Datos reales usan números, datos demo usan nombres
+        - Necesitaba detección automática de formato
+  
+  ✅ SOLUCIONES IMPLEMENTADAS en v5.0.3:
+     1. calcular_runway_mejorado (líneas 1519-1536):
+        - Protección: if burn_rate > 0 antes de dividir
+        - Retorna float('inf') si burn_rate = 0 (runway infinito)
+     
+     2. generar_proyecciones_por_escenario (líneas 1716-1729):
+        - Valida: if revenue_base == 0 and gastos_fijos == 0
+        - Retorna DataFrame con todos los valores en 0
+        - Evita cálculos con datos incompletos
+     
+     3. Top 5 Clientes (líneas 2597-2615):
+        - Detecta si top_clients es dict y convierte a list
+        - sorted(top_clients.items(), key=lambda x: x[1], reverse=True)[:5]
+        - Muestra mensaje cuando no hay datos
+     
+     4. Gráfico estacionalidad (líneas 3235-3250):
+        - Detecta formato automáticamente: isinstance(first_key, str)
+        - Si str: usa nombres directos
+        - Si int: usa índices numéricos (1-12)
+        - Compatible con ambos formatos
 
 🎯 CORRECCIÓN CRÍTICA: FLUJO DE DATOS Y ESTADO INICIAL:
 ========================================================
@@ -1517,7 +1560,7 @@ def calcular_proyeccion_3_meses(revenue_promedio, financial_data):
     return proyeccion
 
 def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
-    """✅ Runway considerando balance proyectado"""
+    """✅ Runway considerando balance proyectado con protección ZeroDivision"""
     balance_3_meses = efectivo_actual + sum(flujos_proyectados)
     
     if balance_3_meses <= 0:
@@ -1528,8 +1571,12 @@ def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
                 return i
         return 3
     else:
-        meses_adicionales = balance_3_meses / burn_rate
-        return 3 + meses_adicionales
+        # ✅ v5.0.3: Proteger división por cero
+        if burn_rate > 0:
+            meses_adicionales = balance_3_meses / burn_rate
+            return 3 + meses_adicionales
+        else:
+            return float('inf')  # Runway infinito si no hay burn rate
 
 def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados, burn_rate, meses_colchon=2):
     """
@@ -1712,6 +1759,7 @@ def calcular_revenue_adicional_escenarios():
 def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, escenario):
     """
     ✅ v5.0.2: Genera proyecciones según NUEVAS FÓRMULAS de escenarios
+    ✅ v5.0.3: Protección cuando todos los valores son 0
     
     Args:
         revenue_base: Revenue mensual base (solo equipos operando)
@@ -1728,8 +1776,17 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
     - Optimista: Moderado + 50% equipos disponibles/standby alquilados
     """
     
-    gastos_fijos = financial_data['gastos_fijos']
-    tasa_costos = financial_data['tasa_costos_variables']
+    gastos_fijos = financial_data.get('gastos_fijos', 0)
+    tasa_costos = financial_data.get('tasa_costos_variables', 0)
+    
+    # ✅ v5.0.3: Si no hay datos (todo en 0), retornar proyecciones vacías
+    if revenue_base == 0 and gastos_fijos == 0:
+        return pd.DataFrame({
+            'mes': list(range(1, meses + 1)),
+            'revenue': [0] * meses,
+            'egresos_totales': [0] * meses,
+            'flujo_neto': [0] * meses
+        })
     
     # Calcular revenue adicional de contratos, cotizaciones y equipos disponibles
     revenue_adicional = calcular_revenue_adicional_escenarios()
@@ -2597,12 +2654,19 @@ if page == "🏠 Resumen Ejecutivo":
         st.markdown("### 🏆 Top 5 Clientes 2025")
         
         top_clients = data['historical']['top_clients']
-        df_clients = pd.DataFrame(top_clients, columns=['Cliente', 'Revenue (USD)'])
-        df_clients['Revenue (USD)'] = df_clients['Revenue (USD)'].apply(lambda x: f"${x:,.0f}")
         
-        st.dataframe(df_clients, use_container_width=True, hide_index=True)
-        
-        st.caption("✅ Datos reales: Utilization Report 2025 (Accrual Revenue)")
+        # ✅ v5.0.3: Manejar top_clients como dict o como estructura vacía
+        if top_clients and isinstance(top_clients, dict):
+            # Convertir dict a lista de tuplas y tomar top 5
+            clients_list = sorted(top_clients.items(), key=lambda x: x[1], reverse=True)[:5]
+            df_clients = pd.DataFrame(clients_list, columns=['Cliente', 'Revenue (USD)'])
+            df_clients['Revenue (USD)'] = df_clients['Revenue (USD)'].apply(lambda x: f"${x:,.0f}")
+            st.dataframe(df_clients, use_container_width=True, hide_index=True)
+            st.caption("✅ Datos reales: Utilization Report 2025 (Accrual Revenue)")
+        else:
+            # Mostrar mensaje cuando no hay datos
+            st.info("No hay datos de clientes disponibles. Cargue archivos para ver clientes reales.")
+            st.caption("💡 Los clientes se extraerán del Utilization Report 2025")
     
     # Proyección 3 meses
     st.markdown("### 📈 Proyección de Flujo (3 meses)")
@@ -3230,9 +3294,20 @@ elif page == "📊 Reportes Detallados":
         
         fig = go.Figure()
         
-        # ✅ Radar que cierra (duplicar primer valor)
-        if show_promedio:
-            factores_promedio = [data['seasonal_factors'][m] for m in meses_nombres]
+        # ✅ v5.0.3: Manejar seasonal_factors con nombres o números como keys
+        if show_promedio and 'seasonal_factors' in data and data['seasonal_factors']:
+            seasonal_data = data['seasonal_factors']
+            
+            # Detectar formato: nombres de meses (str) o números (int)
+            first_key = list(seasonal_data.keys())[0]
+            
+            if isinstance(first_key, str):
+                # Formato: {'Enero': 0.76, 'Febrero': 0.94, ...}
+                factores_promedio = [seasonal_data.get(m, 1.0) for m in meses_nombres]
+            else:
+                # Formato: {1: 0.76, 2: 0.94, ...} - convertir
+                factores_promedio = [seasonal_data.get(i+1, 1.0) for i in range(12)]
+            
             # Duplicar primer valor para cerrar el polígono
             factores_cerrado = factores_promedio + [factores_promedio[0]]
             meses_cerrado = meses_nombres + [meses_nombres[0]]
