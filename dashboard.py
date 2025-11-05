@@ -702,26 +702,42 @@ def procesar_informe_financiero(file_financial):
         for categoria in categorias_egresos:
             cat_row = df_td[df_td.iloc[:, 0].str.contains(categoria, case=False, na=False)]
             if len(cat_row) > 0:
+                # Extraer valores de las columnas de meses (1-9)
                 cat_values = cat_row.iloc[0, 1:10].values
-                # ✅ v5.0.4: Convertir a float y tomar valor absoluto
-                cat_values = [abs(float(v)) for v in cat_values if pd.notna(v) and v != 0]
-                if cat_values:
-                    promedio_cat = np.mean(cat_values)
-                    print(f"   • {categoria}: ${promedio_cat:,.2f}/mes (promedio de {len(cat_values)} valores)")
+                
+                # ✅ v5.0.4: Convertir a float, tomar valor absoluto, y filtrar ceros/nulos
+                cat_values_clean = []
+                for v in cat_values:
+                    if pd.notna(v):
+                        try:
+                            val = float(v)
+                            if val != 0:
+                                cat_values_clean.append(abs(val))
+                        except (ValueError, TypeError):
+                            continue
+                
+                if cat_values_clean:
+                    promedio_cat = np.mean(cat_values_clean)
+                    print(f"   • {categoria}: ${promedio_cat:,.2f}/mes (promedio de {len(cat_values_clean)} valores)")
                     
-                    # ✅ v5.0.4: Validar que el valor sea razonable (< 100k/mes por categoría)
-                    if promedio_cat < 100000:
+                    # ✅ v5.0.4: Validar que el valor sea razonable (> $500 y < 100k/mes por categoría)
+                    if 500 < promedio_cat < 100000:
                         egresos_fijos += promedio_cat
                     else:
-                        print(f"   ⚠️ VALOR SOSPECHOSO ignorado: ${promedio_cat:,.2f}")
+                        print(f"   ⚠️ Valor fuera de rango razonable ($500-$100k), ignorado: ${promedio_cat:,.2f}")
+                else:
+                    print(f"   ⚠️ {categoria}: No se encontraron valores válidos")
         
-        print(f"\n   📊 TOTAL EGRESOS FIJOS: ${egresos_fijos:,.2f}/mes")
+        print(f"\n   📊 TOTAL EGRESOS FIJOS EXTRAÍDOS: ${egresos_fijos:,.2f}/mes")
         
-        # ✅ v5.0.4: Validar que egresos_fijos sea razonable (entre 20k y 200k/mes)
-        if egresos_fijos < 20000 or egresos_fijos > 200000:
-            print(f"   ⚠️ Egresos calculados fuera de rango razonable: ${egresos_fijos:,.2f}")
+        # ✅ v5.0.4: Validar que egresos_fijos sea razonable (entre 30k y 150k/mes)
+        # Rango ajustado basado en operación real de SPT Colombia
+        if egresos_fijos < 30000 or egresos_fijos > 150000:
+            print(f"   ⚠️ Egresos totales fuera de rango esperado ($30k-$150k/mes): ${egresos_fijos:,.2f}")
             print(f"   🔄 Usando valor de backup del backend: $65,732/mes")
             egresos_fijos = 65732
+        else:
+            print(f"   ✅ Egresos validados correctamente: ${egresos_fijos:,.2f}/mes")
         
         # Tasa de costos variables: 9.62% del revenue (estimado desde backend)
         tasa_costos_variables = 0.0962
@@ -733,10 +749,17 @@ def procesar_informe_financiero(file_financial):
         margen_operativo = 1 - (burn_rate / revenue_promedio_real) if revenue_promedio_real > 0 else 0
         
         print(f"   💸 Burn Rate calculado: ${burn_rate:,.2f}/mes")
-        print(f"   📈 Margen Operativo: {margen_operativo*100:.1f}%\n")
+        print(f"   📈 Margen Operativo: {margen_operativo*100:.1f}%")
+        
+        # ✅ v5.0.4: Validar margen operativo (debe estar entre 20% y 60% para ser razonable)
+        if margen_operativo < 0.20 or margen_operativo > 0.60:
+            print(f"   ⚠️ ADVERTENCIA: Margen operativo fuera de rango esperado (20%-60%): {margen_operativo*100:.1f}%")
+            print(f"   💡 Esto sugiere que los egresos pueden estar mal calculados")
+        
+        print()  # Línea en blanco
         
         return {
-            'gastos_fijos': egresos_fijos,  # ✅ v5.0.4: Ya no usar abs() aquí (valores ya validados)
+            'gastos_fijos': egresos_fijos,
             'tasa_costos_variables': tasa_costos_variables,
             'burn_rate': burn_rate,
             'revenue_promedio': revenue_promedio_real,
