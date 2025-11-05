@@ -1,9 +1,9 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.1
+SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.2
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-🚀 VERSIÓN 5.0.1 - DATOS REALES HARDCODED (Noviembre 4, 2025) - INTEGRACIÓN COMPLETA CON DATOS REALES (Noviembre 4, 2025):
+🚀 VERSIÓN 5.0.2 - NUEVAS FÓRMULAS DE ESCENARIOS (Noviembre 4, 2025) - INTEGRACIÓN COMPLETA CON DATOS REALES (Noviembre 4, 2025):
 ==============================================================================
 
 ✅ ELIMINACIÓN TOTAL DE DATOS HARDCODED:
@@ -1529,15 +1529,59 @@ def generar_recomendaciones_inversion(df_excedentes, rentabilidad_estimada=0.10)
     
     return pd.DataFrame(recomendaciones) if recomendaciones else pd.DataFrame()
 
+
+
+def calcular_revenue_adicional_escenarios():
+    """
+    ✅ v5.0.2: Calcula revenue adicional de contratos y cotizaciones
+    
+    Returns:
+        dict con:
+        - revenue_contratos: Revenue mensual de contratos activos
+        - revenue_cotizaciones_50pct: 50% del revenue potencial de cotizaciones
+        - revenue_equipos_disponibles_50pct: 50% del revenue de equipos disponibles
+    """
+    # Revenue de contratos activos
+    revenue_contratos = 0
+    if st.session_state.get('contratos_manuales'):
+        for contrato in st.session_state.contratos_manuales:
+            if contrato.get('estado') == 'Activo':
+                revenue_contratos += contrato.get('tarifa_mensual', 0)
+    
+    # Revenue de cotizaciones (50% ponderado por probabilidad)
+    revenue_cotizaciones = 0
+    if st.session_state.get('cotizaciones_manuales'):
+        for cotizacion in st.session_state.cotizaciones_manuales:
+            prob = cotizacion.get('probabilidad_cierre', 50) / 100
+            tarifa_mensual = cotizacion.get('tarifa_total', 0)
+            revenue_cotizaciones += tarifa_mensual * prob * 0.5  # 50% del potencial
+    
+    # Revenue de equipos disponibles (50% alquilados)
+    revenue_equipos_disponibles = 0
+    equipos_disponibles = get_equipos_disponibles()
+    
+    # Calcular revenue potencial de equipos disponibles
+    for equipo in equipos_disponibles:
+        tarifa_mensual = get_tarifa_sugerida(equipo['tipo'])
+        if tarifa_mensual > 0:
+            revenue_equipos_disponibles += tarifa_mensual
+    
+    # 50% de los equipos disponibles
+    revenue_equipos_disponibles_50pct = revenue_equipos_disponibles * 0.5
+    
+    return {
+        'revenue_contratos': revenue_contratos,
+        'revenue_cotizaciones_50pct': revenue_cotizaciones,
+        'revenue_equipos_disponibles_50pct': revenue_equipos_disponibles_50pct
+    }
+
+
 def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, escenario):
     """
-    🆕 v4.8.1: Genera proyecciones DETERMINISTAS según escenario seleccionado
-    
-    CORRECCIÓN CRÍTICA: Elimina variación aleatoria para que las proyecciones
-    sean consistentes y no cambien al mover otros controles.
+    ✅ v5.0.2: Genera proyecciones según NUEVAS FÓRMULAS de escenarios
     
     Args:
-        revenue_base: Revenue mensual base (promedio histórico)
+        revenue_base: Revenue mensual base (solo equipos operando)
         financial_data: Dict con gastos_fijos y tasa_costos_variables
         meses: Número de meses a proyectar
         escenario: 'Conservador', 'Moderado' o 'Optimista'
@@ -1545,29 +1589,48 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
     Returns:
         DataFrame con columnas: ['mes', 'revenue', 'egresos_totales', 'flujo_neto']
     
-    ESCENARIOS:
-    - Conservador: -15% revenue inicial, +1% crecimiento mensual
-    - Moderado: revenue base, +2% crecimiento mensual
-    - Optimista: +15% revenue inicial, +3% crecimiento mensual
+    NUEVOS ESCENARIOS v5.0.2:
+    - Conservador: Solo equipos operando + estacionalidad
+    - Moderado: Equipos operando + contratos activos + 50% cotizaciones
+    - Optimista: Moderado + 50% equipos disponibles/standby alquilados
     """
     
     gastos_fijos = financial_data['gastos_fijos']
     tasa_costos = financial_data['tasa_costos_variables']
     
-    # Configuración de escenarios
-    config_escenarios = {
-        'Conservador': {'factor': 0.85, 'crecimiento': 0.01},
-        'Moderado': {'factor': 1.0, 'crecimiento': 0.02},
-        'Optimista': {'factor': 1.15, 'crecimiento': 0.03}
+    # Calcular revenue adicional de contratos, cotizaciones y equipos disponibles
+    revenue_adicional = calcular_revenue_adicional_escenarios()
+    
+    # Configuración de revenue base según escenario
+    if escenario == 'Conservador':
+        # Solo equipos operando
+        revenue_base_escenario = revenue_base
+    elif escenario == 'Moderado':
+        # Equipos operando + contratos + 50% cotizaciones
+        revenue_base_escenario = (revenue_base + 
+                                  revenue_adicional['revenue_contratos'] + 
+                                  revenue_adicional['revenue_cotizaciones_50pct'])
+    else:  # Optimista
+        # Moderado + 50% equipos disponibles
+        revenue_base_escenario = (revenue_base + 
+                                  revenue_adicional['revenue_contratos'] + 
+                                  revenue_adicional['revenue_cotizaciones_50pct'] +
+                                  revenue_adicional['revenue_equipos_disponibles_50pct'])
+    
+    # Tasas de crecimiento mensual
+    tasas_crecimiento = {
+        'Conservador': 0.01,  # 1% mensual
+        'Moderado': 0.02,     # 2% mensual
+        'Optimista': 0.03     # 3% mensual
     }
     
-    config = config_escenarios[escenario]
+    crecimiento = tasas_crecimiento[escenario]
     
     proyecciones = []
     
     for i in range(meses):
-        # Revenue proyectado DETERMINISTA (sin random)
-        revenue_mes = revenue_base * config['factor'] * (1 + config['crecimiento'])**i
+        # Revenue proyectado con crecimiento
+        revenue_mes = revenue_base_escenario * (1 + crecimiento)**i
         
         # Burn rate dinámico según revenue del mes
         costos_variables = revenue_mes * tasa_costos
