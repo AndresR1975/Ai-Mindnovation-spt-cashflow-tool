@@ -479,16 +479,25 @@ def procesar_utilization_reports(file_2023, file_2024, file_2025):
         dict con revenue mensual, clientes, estacionalidad
     """
     try:
+        print("\n📥 Iniciando procesamiento de Utilization Reports...")
+        
         # Leer los 3 archivos
         df_2023 = pd.read_excel(file_2023, sheet_name=0)
+        print(f"   ✅ Archivo 2023 leído: {len(df_2023)} filas")
+        
         df_2024 = pd.read_excel(file_2024, sheet_name=0)
+        print(f"   ✅ Archivo 2024 leído: {len(df_2024)} filas")
+        
         df_2025 = pd.read_excel(file_2025, sheet_name=0)
+        print(f"   ✅ Archivo 2025 leído: {len(df_2025)} filas")
         
         # Combinar todos los datos
         df_all = pd.concat([df_2023, df_2024, df_2025], ignore_index=True)
+        print(f"   ✅ Total combinado: {len(df_all)} filas")
         
         # Limpiar nombres de columnas
         df_all.columns = df_all.columns.str.strip()
+        print(f"   📋 Columnas: {list(df_all.columns)}")
         
         # Convertir Date a datetime
         df_all['Date'] = pd.to_datetime(df_all['Date'])
@@ -497,23 +506,29 @@ def procesar_utilization_reports(file_2023, file_2024, file_2025):
         
         # Convertir Accrual Revenue a numérico
         df_all['Accrual Revenue'] = pd.to_numeric(df_all['Accrual Revenue'], errors='coerce')
+        print(f"   💰 Rango de Accrual Revenue: ${df_all['Accrual Revenue'].min():,.2f} - ${df_all['Accrual Revenue'].max():,.2f}")
         
         # 1. Revenue mensual total
         revenue_mensual = df_all.groupby(['Year', 'Month'])['Accrual Revenue'].sum().reset_index()
         revenue_mensual['Year-Month'] = revenue_mensual['Year'].astype(str) + '-' + revenue_mensual['Month'].astype(str).str.zfill(2)
+        print(f"   📊 Periodos encontrados: {len(revenue_mensual)}")
         
         # 2. Revenue promedio
         revenue_promedio = revenue_mensual['Accrual Revenue'].mean()
+        print(f"   📈 Revenue promedio mensual: ${revenue_promedio:,.2f}")
         
         # 3. Top clientes (últimos 12 meses)
         df_recent = df_all[df_all['Date'] >= df_all['Date'].max() - pd.DateOffset(months=12)]
         top_clientes = df_recent.groupby('Client')['Accrual Revenue'].sum().sort_values(ascending=False).head(10)
+        print(f"   👥 Top clientes encontrados: {len(top_clientes)}")
         
         # 4. Estacionalidad (promedio por mes del año)
         estacionalidad = df_all.groupby('Month')['Accrual Revenue'].mean()
         
         # 5. Revenue por año
         revenue_anual = df_all.groupby('Year')['Accrual Revenue'].sum()
+        
+        print("   ✅ Procesamiento de Utilization Reports completado\n")
         
         return {
             'revenue_mensual': revenue_mensual,
@@ -525,6 +540,9 @@ def procesar_utilization_reports(file_2023, file_2024, file_2025):
         }
         
     except Exception as e:
+        print(f"   ❌ ERROR en procesar_utilization_reports: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         st.error(f"Error procesando Utilization Reports: {str(e)}")
         return None
 
@@ -568,11 +586,15 @@ def procesar_informe_financiero(file_financial):
         # Burn rate = gastos fijos + (revenue × tasa costos)
         burn_rate = egresos_fijos + (revenue_promedio_real * tasa_costos_variables)
         
+        # Calcular margen operativo
+        margen_operativo = 1 - (burn_rate / revenue_promedio_real) if revenue_promedio_real > 0 else 0
+        
         return {
             'gastos_fijos': abs(egresos_fijos),
             'tasa_costos_variables': tasa_costos_variables,
             'burn_rate': burn_rate,
-            'revenue_promedio': revenue_promedio_real
+            'revenue_promedio': revenue_promedio_real,
+            'margen_operativo': margen_operativo
         }
         
     except Exception as e:
@@ -582,7 +604,8 @@ def procesar_informe_financiero(file_financial):
             'gastos_fijos': 65732,
             'tasa_costos_variables': 0.0962,
             'burn_rate': 77994,
-            'revenue_promedio': 127468
+            'revenue_promedio': 127468,
+            'margen_operativo': 0.388  # (127468 - 77994) / 127468
         }
 
 def procesar_weekly_operation(file_weekly):
@@ -666,6 +689,15 @@ def procesar_archivos_reales(files_dict):
         revenue_maximo = df_historical['revenue'].max()
         periodos = len(df_historical)
         
+        # Debug logging
+        print(f"\n📊 DATOS PROCESADOS CORRECTAMENTE:")
+        print(f"   - Periodos: {periodos}")
+        print(f"   - Revenue promedio: ${revenue_promedio:,.2f}")
+        print(f"   - Revenue mínimo: ${revenue_minimo:,.2f}")
+        print(f"   - Revenue máximo: ${revenue_maximo:,.2f}")
+        print(f"   - DataFrame shape: {df_historical.shape}")
+        print(f"   - Primeros periodos: {df_historical['periodo'].head(3).tolist()}")
+        
         # 5. Estructurar datos en formato compatible
         datos_procesados = {
             'historical': {
@@ -676,16 +708,17 @@ def procesar_archivos_reales(files_dict):
                 'data': df_historical,  # ✅ Cambio: 'data' en lugar de 'df_historical'
                 'top_clients': util_data['top_clientes'],
                 'revenue_anual': util_data['revenue_anual'],
-                'estacionalidad': seasonal_factors,
-                'estacionalidad_valores': estacionalidad,
                 'years_data': {}  # Se puede agregar más detalle si se necesita
             },
             'financial': {
                 'gastos_fijos': financial_data['gastos_fijos'],
                 'tasa_costos_variables': financial_data['tasa_costos_variables'],
                 'burn_rate': financial_data['burn_rate'],
-                'margen_operativo': financial_data.get('margen_operativo', 0.485)
+                'margen_operativo': financial_data['margen_operativo'],
+                'costos_variables': int(revenue_promedio * financial_data['tasa_costos_variables'])
             },
+            'seasonal_factors': seasonal_factors,  # ✅ v5.0.3: En nivel raíz para compatibilidad
+            'seasonal_by_year': {},  # Puede calcularse si se necesita
             'equipment': weekly_data,
             'metadata': {
                 'fecha_procesamiento': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
