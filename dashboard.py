@@ -1,10 +1,25 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.2
+SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.3
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-🚀 VERSIÓN 5.0.2 - NUEVAS FÓRMULAS DE ESCENARIOS (Noviembre 4, 2025) - INTEGRACIÓN COMPLETA CON DATOS REALES (Noviembre 4, 2025):
+🚀 VERSIÓN 5.0.3 - PROYECCIONES 100% DETERMINÍSTICAS (Noviembre 5, 2025):
 ==============================================================================
+
+🎯 ELIMINACIÓN TOTAL DE COMPONENTES ALEATORIOS:
+  
+  ❌ PROBLEMA IDENTIFICADO en v5.0.2:
+     - generar_datos_historicos() usaba np.random.uniform() para "ruido natural"
+     - calcular_proyeccion_3_meses() usaba np.random.uniform() para "variación"
+     - Los escenarios mostraban valores diferentes en cada refresh
+     - Escenario Optimista a veces mostraba menos ingresos que Moderado
+  
+  ✅ SOLUCIÓN en v5.0.3:
+     - Eliminado np.random de generar_datos_historicos() (línea 1340-1341)
+     - Eliminado np.random de calcular_proyeccion_3_meses() (línea 1375)
+     - Proyecciones ahora son 100% determinísticas y reproducibles
+     - Los escenarios mantienen su jerarquía correcta siempre
+     - Datos históricos usan solo tendencia + estacionalidad real
 
 ✅ ELIMINACIÓN TOTAL DE DATOS HARDCODED:
 
@@ -1336,9 +1351,8 @@ def get_historical_data_complete():
         # Aplicar estacionalidad
         revenue_mes = tendencia * factor_estacional
         
-        # Agregar variabilidad natural
-        ruido = np.random.uniform(-0.05, 0.05) * revenue_mes
-        revenue_mes = max(50000, revenue_mes + ruido)
+        # ✅ v5.0.3: Sin variabilidad aleatoria - proyecciones determinísticas
+        revenue_mes = max(50000, revenue_mes)
         
         revenue.append(revenue_mes)
         years_data[year].append(revenue_mes)
@@ -1352,6 +1366,7 @@ def calcular_proyeccion_3_meses(revenue_promedio, financial_data):
     """
     Calcula proyección de flujo para próximos 3 meses
     🆕 v4.6.0: Burn rate DINÁMICO según revenue de cada mes
+    ✅ v5.0.3: Sin variación aleatoria - proyecciones determinísticas
     
     Args:
         revenue_promedio: Revenue mensual promedio base
@@ -1362,7 +1377,7 @@ def calcular_proyeccion_3_meses(revenue_promedio, financial_data):
     
     METODOLOGÍA:
     Para cada mes proyectado:
-    1. Calcular revenue con variación aleatoria (-5% a +10%)
+    1. Usar revenue promedio sin variación (100% determinístico)
     2. Calcular burn rate dinámico: Gastos Fijos + (Revenue × Tasa Costos)
     3. Flujo neto = Revenue - Burn Rate dinámico
     """
@@ -1371,8 +1386,8 @@ def calcular_proyeccion_3_meses(revenue_promedio, financial_data):
     tasa_costos = financial_data['tasa_costos_variables']
     
     for i in range(3):
-        # Revenue proyectado con variación
-        revenue_mes = revenue_promedio * (1 + np.random.uniform(-0.05, 0.1))
+        # ✅ v5.0.3: Revenue determinístico sin variación aleatoria
+        revenue_mes = revenue_promedio
         
         # 🆕 v4.6.0: Calcular burn rate DINÁMICO según revenue del mes
         burn_rate_mes = gastos_fijos + (revenue_mes * tasa_costos)
