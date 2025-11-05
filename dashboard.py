@@ -3,8 +3,46 @@ SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.3
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
 
-🚀 VERSIÓN 5.0.3 - PROYECCIONES 100% DETERMINÍSTICAS (Noviembre 5, 2025):
-==============================================================================
+🚀 VERSIÓN 5.0.3 - DATOS REALES + INICIO EN BLANCO (Noviembre 5, 2025):
+=========================================================================
+
+🎯 CORRECCIÓN CRÍTICA: FLUJO DE DATOS Y ESTADO INICIAL:
+========================================================
+
+  ❌ PROBLEMA IDENTIFICADO:
+     1. Bug de orden de ejecución al cargar datos reales:
+        - Usuario seleccionaba "Cargar Datos Propios" → data_source = 'upload'
+        - Presionaba "Procesar Datos" → data_source = 'real', st.rerun()
+        - Al reiniciar, sidebar se ejecutaba PRIMERO y cambiaba data_source de vuelta a 'upload'
+        - get_data() nunca veía data_source == 'real' con datos procesados
+        - Resultado: Datos reales nunca se mostraban, siempre datos demo
+     
+     2. Dashboard iniciaba automáticamente con datos demo:
+        - data_source se inicializaba como 'demo'
+        - Usuario veía métricas simuladas desde el inicio
+        - No era claro que debían cargar archivos para ver datos reales
+  
+  ✅ SOLUCIÓN en v5.0.3:
+     1. Nuevo flujo de estados:
+        - 'none': Estado inicial - TODO en $0 hasta cargar datos
+        - 'upload': Usuario seleccionó cargar archivos (esperando procesamiento)
+        - 'demo': Usuario seleccionó explícitamente datos de demostración
+        - 'real': Datos procesados exitosamente desde archivos Excel
+     
+     2. get_data() prioriza datos_procesados:
+        - Si hay datos_procesados → SIEMPRE los retorna (ignora estado del sidebar)
+        - Si data_source == 'none' o 'upload' sin datos → retorna estructura vacía ($0)
+        - Si data_source == 'demo' → genera datos de demostración
+     
+     3. Selector de datos mejorado:
+        - NO cambia data_source si ya hay datos procesados
+        - Muestra indicador "🟢 Datos reales cargados y procesados"
+        - Permite volver a demo con botón explícito
+     
+     4. Indicadores de estado claros:
+        - 🟢 Verde: Datos reales cargados
+        - 🔵 Azul: Datos de demostración
+        - ⚪ Blanco: Sin datos ($0) - esperando carga
 
 🎯 ELIMINACIÓN TOTAL DE COMPONENTES ALEATORIOS:
   
@@ -1060,7 +1098,7 @@ if 'efectivo_disponible' not in st.session_state:
     st.session_state.efectivo_disponible = None
 
 if 'data_source' not in st.session_state:
-    st.session_state.data_source = 'demo'
+    st.session_state.data_source = 'none'  # ✅ v5.0.3: Iniciar vacío hasta cargar datos
 
 if 'archivos_cargados' not in st.session_state:
     st.session_state.archivos_cargados = {}
@@ -1917,16 +1955,47 @@ def calcular_transferencias_con_balance(proyecciones_df, efectivo_inicial, meses
 
 def get_data():
     """
-    Retorna datos según la fuente (demo o real)
+    Retorna datos según la fuente (none/demo/real)
     
-    ✅ v4.5.5: CORRECCIÓN CRÍTICA - Cálculo dinámico del burn rate
-    ✅ v4.5.3: Todos los datos de demo también usan métricas reales
-    del backend como base, eliminando completamente los valores hardcodeados.
+    ✅ v5.0.3: ESTADO INICIAL VACÍO
+    - 'none': Sin datos (todo en $0) hasta que usuario cargue o seleccione demo
+    - 'demo': Datos de demostración con métricas reales del backend
+    - 'real': Datos procesados de archivos Excel del usuario
+    - 'upload': Usuario seleccionó cargar archivos (espera procesamiento)
+    
+    ✅ v4.5.5: Cálculo dinámico del burn rate
+    ✅ v4.5.3: Datos de demo usan métricas reales del backend
     """
     
-    if st.session_state.data_source == 'real' and st.session_state.datos_procesados:
+    # ✅ v5.0.3: Si hay datos procesados (real), usarlos sin importar el estado del sidebar
+    if st.session_state.datos_procesados is not None:
         return st.session_state.datos_procesados
-    else:
+    
+    # ✅ v5.0.3: Estado 'none' o 'upload' sin datos procesados → retornar estructura vacía
+    if st.session_state.data_source in ['none', 'upload']:
+        return {
+            'historical': {
+                'revenue_promedio': 0,
+                'revenue_minimo': 0,
+                'revenue_maximo': 0,
+                'top_clients': {},
+                'periodos': 0,
+                'data': pd.DataFrame({'periodo': [], 'revenue': []}),
+                'years_data': {}
+            },
+            'financial': {
+                'burn_rate': 0,
+                'gastos_fijos': 0,
+                'costos_variables': 0,
+                'tasa_costos_variables': 0,
+                'margen_operativo': 0
+            },
+            'seasonal_factors': {},
+            'seasonal_by_year': {}
+        }
+    
+    # Estado 'demo' → generar datos de demostración
+    if st.session_state.data_source == 'demo':
         df_historical, years_data = get_historical_data_complete()
         
         # Calcular factores estacionales por año
@@ -1946,7 +2015,6 @@ def get_data():
         top_clients_real = get_real_top_clients()
         
         # 🔧 CORRECCIÓN v4.5.5: Calcular burn_rate dinámicamente
-        # Usar revenue promedio histórico para el cálculo
         revenue_promedio = df_historical['revenue'].mean()
         burn_rate_data = calcular_burn_rate(revenue_promedio)
         
@@ -1955,21 +2023,43 @@ def get_data():
                 'revenue_promedio': int(revenue_promedio),
                 'revenue_minimo': int(df_historical['revenue'].min()),
                 'revenue_maximo': int(df_historical['revenue'].max()),
-                'top_clients': top_clients_real,  # ✅ DATOS REALES
+                'top_clients': top_clients_real,
                 'periodos': 33,
                 'data': df_historical,
                 'years_data': years_data
             },
             'financial': {
-                'burn_rate': burn_rate_data['burn_rate'],           # ✅ CALCULADO dinámicamente
-                'gastos_fijos': burn_rate_data['gastos_fijos'],     # ✅ REAL: $65,732
-                'costos_variables': burn_rate_data['costos_variables'], # ✅ CALCULADO: Revenue × 9.62%
-                'tasa_costos_variables': financial_real['tasa_costos_variables'],  # ✅ Para proyecciones
-                'margen_operativo': financial_real['margen_operativo']  # ✅ REAL: 48.5%
+                'burn_rate': burn_rate_data['burn_rate'],
+                'gastos_fijos': burn_rate_data['gastos_fijos'],
+                'costos_variables': burn_rate_data['costos_variables'],
+                'tasa_costos_variables': financial_real['tasa_costos_variables'],
+                'margen_operativo': financial_real['margen_operativo']
             },
-            'seasonal_factors': seasonal_avg,  # ✅ DATOS REALES calculados
+            'seasonal_factors': seasonal_avg,
             'seasonal_by_year': seasonal_by_year
         }
+    
+    # Fallback: retornar estructura vacía
+    return {
+        'historical': {
+            'revenue_promedio': 0,
+            'revenue_minimo': 0,
+            'revenue_maximo': 0,
+            'top_clients': {},
+            'periodos': 0,
+            'data': pd.DataFrame({'periodo': [], 'revenue': []}),
+            'years_data': {}
+        },
+        'financial': {
+            'burn_rate': 0,
+            'gastos_fijos': 0,
+            'costos_variables': 0,
+            'tasa_costos_variables': 0,
+            'margen_operativo': 0
+        },
+        'seasonal_factors': {},
+        'seasonal_by_year': {}
+    }
 
 
 # =============================================================================
@@ -2091,17 +2181,39 @@ with st.sidebar:
     st.markdown("**Análisis de Flujo de Efectivo**")
     st.markdown("---")
     
-    # ✅ CORRECCIÓN 1: Reactivar carga de archivos
+    # ✅ v5.0.3: Selector de fuente de datos mejorado
     st.markdown("### 📊 Fuente de Datos")
+    
+    # Determinar estado actual para el selector
+    if st.session_state.datos_procesados is not None:
+        current_index = 1  # Cargar Datos Propios (ya procesados)
+        st.success("🟢 **Datos reales cargados y procesados**")
+    elif st.session_state.data_source == 'demo':
+        current_index = 0  # Datos de Demostración
+    else:
+        current_index = 1  # Cargar Datos Propios (sin procesar aún)
     
     data_source_option = st.radio(
         "Seleccione:",
         ["📈 Datos de Demostración", "📁 Cargar Datos Propios"],
-        index=0 if st.session_state.data_source == 'demo' else 1
+        index=current_index,
+        help="💡 Datos de Demostración: métricas simuladas basadas en backend real. Cargar Datos Propios: análisis con sus archivos Excel."
     )
     
+    # ✅ v5.0.3: Solo cambiar data_source si NO hay datos procesados
+    if data_source_option == "📈 Datos de Demostración":
+        if st.session_state.datos_procesados is not None:
+            if st.button("🔄 Volver a Datos de Demostración", use_container_width=True):
+                st.session_state.data_source = 'demo'
+                st.session_state.datos_procesados = None
+                st.rerun()
+        else:
+            st.session_state.data_source = 'demo'
+    
     if data_source_option == "📁 Cargar Datos Propios":
-        st.session_state.data_source = 'upload'
+        # Solo cambiar a 'upload' si no hay datos procesados
+        if st.session_state.datos_procesados is None:
+            st.session_state.data_source = 'upload'
         
         st.markdown("#### 📁 Subir Archivos Excel")
         st.info("💡 Suba los 5 archivos requeridos para el análisis completo")
@@ -2367,11 +2479,13 @@ data = get_data()
 if page == "🏠 Resumen Ejecutivo":
     st.markdown("## 🎯 Resumen Ejecutivo")
     
-    # 🆕 v4.8.0: Indicador visual corregido - muestra verde cuando hay datos reales
-    if st.session_state.data_source == 'real':
+    # ✅ v5.0.3: Indicador visual actualizado con nuevos estados
+    if st.session_state.datos_procesados is not None:
         st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
-    else:
+    elif st.session_state.data_source == 'demo':
         st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
+    elif st.session_state.data_source in ['none', 'upload']:
+        st.warning("⚪ **Sin datos cargados** - Todos los valores en $0. Cargue archivos y presione 'Procesar Datos' para comenzar el análisis.")
     
     revenue_mensual = data['historical']['revenue_promedio']
     burn_rate = data['financial']['burn_rate']
