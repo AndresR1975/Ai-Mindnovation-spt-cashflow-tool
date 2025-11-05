@@ -1,7 +1,39 @@
 """
-SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.3
+SPT CASH FLOW TOOL - Dashboard Streamlit v5.0.4
 ================================================
 Dashboard de análisis de flujo de efectivo para SPT Colombia
+
+🚀 VERSIÓN 5.0.4 - CORRECCIÓN BALANCE Y GRÁFICO DE RADAR (Noviembre 5, 2025):
+=============================================================================
+
+🐛 CORRECCIONES v5.0.4:
+=======================
+
+  ❌ PROBLEMAS REPORTADOS POR USUARIO:
+     1. Balance Proyectado (3m) mostraba valor incorrecto
+        - Mostraba excedente/déficit (-$1,136,382,060) en lugar del balance real
+        - Confusión entre balance_proyectado y excedente_deficit
+        - El excedente/déficit ya se mostraba correctamente más abajo
+     
+     2. Gráfico de Radar no mostraba años 2023 y 2024
+        - seasonal_by_year se dejaba como dict vacío {} al procesar datos reales
+        - Los datos estaban disponibles pero no se calculaban los factores por año
+        - Los checkboxes de años 2023 y 2024 no mostraban ninguna línea
+  
+  ✅ SOLUCIONES IMPLEMENTADAS en v5.0.4:
+     1. KPI Balance Proyectado corregido (línea ~2592):
+        - Ahora muestra: analisis_cash['balance_proyectado']
+        - Representa: efectivo_actual + sum(flujos_3_meses)
+        - Tooltip mejorado explicando qué representa el valor
+        - El excedente/déficit se mantiene en su métrica separada más abajo
+     
+     2. Cálculo de seasonal_by_year agregado (línea ~755):
+        - Usa df_completo para calcular factores por año (2023, 2024)
+        - Agrupa revenue por Year y Month
+        - Calcula factor = revenue_mes / promedio_anual
+        - Solo incluye años con 12 meses completos
+        - Año 2025 excluido (solo 9 meses: Ene-Sep)
+        - Ahora el gráfico de radar muestra correctamente años 2023 y 2024
 
 🚀 VERSIÓN 5.0.3 - CORRECCIONES CRÍTICAS DE ERRORES (Noviembre 5, 2025):
 =========================================================================
@@ -757,6 +789,28 @@ def procesar_archivos_reales(files_dict):
         avg_revenue = np.mean(list(estacionalidad.values()))
         seasonal_factors = {mes: val/avg_revenue for mes, val in estacionalidad.items()}
         
+        # ✅ v5.0.4: Calcular seasonal_by_year para años completos (2023, 2024)
+        seasonal_by_year = {}
+        df_completo = util_data['df_completo']
+        
+        # Calcular para cada año que tenga 12 meses completos
+        for year in [2023, 2024]:
+            df_year = df_completo[df_completo['Year'] == year]
+            if len(df_year['Month'].unique()) == 12:
+                # Revenue por mes para este año
+                revenue_por_mes = df_year.groupby('Month')['Accrual Revenue'].sum()
+                promedio_anual = revenue_por_mes.mean()
+                
+                # Calcular factores (revenue_mes / promedio_anual)
+                factores_12_meses = [revenue_por_mes.get(mes, promedio_anual) / promedio_anual 
+                                     for mes in range(1, 13)]
+                seasonal_by_year[year] = factores_12_meses
+                print(f"   ✅ Factores estacionales calculados para año {year}")
+        
+        # Año 2025 no se incluye (solo 9 meses: Ene-Sep)
+        print(f"   ⚠️ Año 2025 omitido (incompleto: solo 9 meses)")
+        
+        
         # ✅ v5.0.3: Crear DataFrame histórico con estructura correcta para visualización
         df_revenue_mensual = util_data['revenue_mensual']
         df_historical = pd.DataFrame({
@@ -799,7 +853,7 @@ def procesar_archivos_reales(files_dict):
                 'costos_variables': int(revenue_promedio * financial_data['tasa_costos_variables'])
             },
             'seasonal_factors': seasonal_factors,  # ✅ v5.0.3: En nivel raíz para compatibilidad
-            'seasonal_by_year': {},  # Puede calcularse si se necesita
+            'seasonal_by_year': seasonal_by_year,  # ✅ v5.0.4: Calculado para años completos
             'equipment': weekly_data,
             'metadata': {
                 'fecha_procesamiento': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -2589,14 +2643,14 @@ if page == "🏠 Resumen Ejecutivo":
     
     with col3:
         st.markdown('<div class="kpi-card">', unsafe_allow_html=True)
-        excedente = analisis_cash['excedente_deficit']
-        meses_colchon = analisis_cash['meses_colchon']
-        excedente_color = "🟢" if excedente > 0 else "🔴"
+        # ✅ v5.0.4: Mostrar balance_proyectado real (no excedente/déficit)
+        balance_3m = analisis_cash['balance_proyectado']
+        balance_color = "🟢" if balance_3m > efectivo_actual else ("🟡" if balance_3m > 0 else "🔴")
         st.metric(
-            f"{excedente_color} Balance Proyectado (3m)",
-            f"${excedente:,.0f}",
-            delta=None,
-            help=f"Balance después de 3 meses - Margen de protección ({meses_colchon} {'mes' if meses_colchon == 1 else 'meses'} de burn rate)"
+            f"{balance_color} Balance Proyectado (3m)",
+            f"${balance_3m:,.0f}",
+            delta=f"${balance_3m - efectivo_actual:+,.0f}",
+            help="Efectivo proyectado al final de 3 meses: Efectivo Actual + Flujos Netos Proyectados. Representa el efectivo disponible esperado."
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
