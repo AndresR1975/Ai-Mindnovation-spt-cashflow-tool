@@ -2842,7 +2842,7 @@ with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("📈 Usar Datos de Demostración", use_container_width=True, type="secondary"):
+        if st.button("📈 Usar Datos de Demostración", use_container_width=True, type="secondary", key="btn_usar_demo"):
             if st.session_state.datos_procesados is not None:
                 st.session_state.data_source = 'demo'
                 st.session_state.datos_procesados = None
@@ -2852,7 +2852,7 @@ with tab1:
                 st.rerun()
 
     with col2:
-        use_own = st.button("📁 Preparar Carga de Archivos", use_container_width=True, type="primary")
+        use_own = st.button("📁 Preparar Carga de Archivos", use_container_width=True, type="primary", key="btn_preparar_carga")
         if use_own:
             if st.session_state.datos_procesados is None:
                 st.session_state.data_source = 'upload'
@@ -2907,7 +2907,7 @@ with tab1:
         if all_files:
             st.success("✅ Todos los archivos cargados")
 
-            if st.button("🚀 Procesar Datos", use_container_width=True, type="primary"):
+            if st.button("🚀 Procesar Datos", use_container_width=True, type="primary", key="btn_procesar_datos"):
                 with st.spinner("⚙️ Procesando archivos Excel..."):
                     try:
                         # Preparar diccionario con archivos
@@ -3831,7 +3831,7 @@ with tab3:
     )
 
     fig.update_layout(height=400, showlegend=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="chart_resumen_flujo_neto_3m")
 
     # Balance al final de 3 meses
     balance_3m = analisis_cash['balance_proyectado']
@@ -4075,7 +4075,7 @@ with tab3:
             showlegend=True
         )
 
-        st.plotly_chart(fig_transfer, use_container_width=True)
+        st.plotly_chart(fig_transfer, use_container_width=True, key="chart_resumen_transferencias")
 
     st.caption("""
     **Nota:** Las transferencias se realizan trimestre vencido. Esto permite:
@@ -4152,7 +4152,7 @@ with tab4:
         yaxis=dict(tickformat='$,.0f')
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="chart_analisis_tendencia_historica")
 
     # Análisis de tendencia
     if slope > 0:
@@ -4233,7 +4233,7 @@ with tab5:
             legend=dict(orientation="h", yanchor="bottom", y=1.02)
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_proyecciones_flujos_lineal")
 
         # 🆕 v4.7.1: GRÁFICO COMPARATIVO DE BARRAS - Revenue y Egresos por Escenario
         st.markdown("### 📊 Comparación Revenue vs Egresos por Escenario")
@@ -4286,7 +4286,7 @@ with tab5:
             hovermode='x unified'
         )
 
-        st.plotly_chart(fig_comp, use_container_width=True)
+        st.plotly_chart(fig_comp, use_container_width=True, key="chart_proyecciones_barras_comparativas")
 
         # 🆕 v4.7.1: TABLA COMPARATIVA DE RESUMEN
         st.markdown("### 📋 Tabla Comparativa de Escenarios")
@@ -4383,7 +4383,9 @@ with tab5:
                 yaxis=dict(tickformat='$,.0f')
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            # Key único y seguro para el gráfico (sin espacios ni caracteres especiales)
+            chart_key = f"runway_chart_{idx}_{escenario.lower().replace(' ', '_')}"
+            st.plotly_chart(fig, use_container_width=True, key=chart_key)
 
             st.markdown("#### 📋 Tabla Detallada")
 
@@ -4516,7 +4518,7 @@ with tab6:
             legend=dict(orientation="h", yanchor="bottom", y=-0.15)
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_analisis_radar_principal")
 
         st.info("""
         ℹ️ **Nota sobre Año 2025:**  
@@ -4593,7 +4595,7 @@ with tab6:
                      title='Distribución del Burn Rate',
                      color_discrete_sequence=px.colors.sequential.Blues_r)
         fig.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_reportes_clientes")
 
         revenue_prom = data['historical']['revenue_promedio']
         burn_rate_calc = data['financial']['burn_rate']
@@ -4661,7 +4663,7 @@ with tab6:
             title='Evolución del Efectivo por Escenario (con Burn Rate REAL)'
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_reportes_balance_12m")
 
         st.markdown("### ⏱️ Análisis de Runway por Escenario")
 
