@@ -1,7 +1,58 @@
 """
-SPT MASTER FORECAST - Dashboard Streamlit v6.0.4
+SPT MASTER FORECAST - Dashboard Streamlit v6.0.5
 =================================================
 Sistema de pronóstico y análisis financiero para SPT Colombia
+
+🚀 VERSIÓN 6.0.5 - DEBUG Y HISTÓRICO EN PROYECCIONES (Noviembre 6, 2025):
+===========================================================================
+
+🔧 MEJORAS CRÍTICAS - ESTACIONALIDAD VISIBLE Y VERIFICABLE:
+============================================================
+
+  ✨ PROBLEMAS RESUELTOS (v6.0.5):
+  
+     1. 🐛 PROBLEMA IDENTIFICADO:
+        - Proyecciones se veían lineales incluso con estacionalidad
+        - Datos reales con pocos meses (<12) generaban factores débiles
+        - No había forma de verificar qué factores se estaban usando
+        - Usuario no podía comparar proyecciones con histórico real
+     
+     2. ✅ SOLUCIONES IMPLEMENTADAS:
+        
+        A) FALLBACK A FACTORES REALES:
+        - Si datos reales tienen <12 meses → usa factores históricos conocidos
+        - Si datos reales tienen >=12 meses → usa factores calculados
+        - Print en consola indica qué factores se usaron
+        
+        B) DEBUG VISIBLE EN UI:
+        - Métrica de "Estacionalidad Activada/Desactivada"
+        - Métrica de "Variación %" entre pico y valle
+        - Advertencia si variación <50% (se verá casi lineal)
+        - Éxito si variación >50% (deberías ver altibajos)
+        
+        C) HISTÓRICO EN GRÁFICO ⭐:
+        - Línea gris punteada con últimos 12 meses reales
+        - Etiquetas H1-H12 para histórico
+        - Etiquetas P1-P12 para proyección
+        - Comparación visual directa histórico vs proyectado
+        
+        D) TABLA DE FACTORES:
+        - Expander con tabla mostrando factores exactos
+        - Por mes: nombre, factor, variación %
+        - Usuario puede verificar qué se está aplicando
+     
+     3. 🎯 BENEFICIOS:
+        - Usuario sabe EXACTAMENTE si estacionalidad está activa
+        - Usuario sabe EXACTAMENTE qué esperar (variación %)
+        - Usuario puede COMPARAR con datos históricos reales
+        - Usuario puede VERIFICAR factores en tabla
+        - Transparencia total sobre cálculos
+     
+     4. 📊 EXPERIENCIA MEJORADA:
+        - "Variación 206%" → Usuario sabe que DEBE ver altibajos
+        - "Variación 15%" → Usuario entiende por qué se ve casi lineal
+        - Histórico visible → Valida que proyecciones sean realistas
+        - Tabla de factores → Permite auditoría completa
 
 🚀 VERSIÓN 6.0.4 - MEJORAS VISUALES EN ESTACIONALIDAD (Noviembre 6, 2025):
 ============================================================================
@@ -1083,8 +1134,21 @@ def procesar_archivos_reales(files_dict):
         # 4. Calcular factores estacionales
         estacionalidad = util_data['estacionalidad']
         avg_revenue = np.mean(list(estacionalidad.values()))
-        # Protección contra división por cero
-        seasonal_factors = {mes: (val/avg_revenue if avg_revenue > 0 else 1.0) for mes, val in estacionalidad.items()}
+        
+        # 🆕 v6.0.5: Mejorar cálculo de factores estacionales con fallback
+        # Si hay menos de 12 meses de datos, usar factores reales conocidos
+        num_meses_datos = len(estacionalidad)
+        
+        if num_meses_datos >= 12:
+            # Suficientes datos: calcular factores de datos reales
+            seasonal_factors = {mes: (val/avg_revenue if avg_revenue > 0 else 1.0) 
+                              for mes, val in estacionalidad.items()}
+            print(f"   ✅ Factores estacionales calculados de {num_meses_datos} meses de datos reales")
+        else:
+            # Pocos datos: usar factores reales conocidos
+            seasonal_factors = get_real_seasonal_factors()
+            print(f"   ⚠️ Solo {num_meses_datos} meses de datos - Usando factores estacionales históricos conocidos")
+            print(f"   💡 Los factores históricos se basan en 33 meses de datos (2023-2025)")
         
         # ✅ v5.0.4: Calcular seasonal_by_year para años completos (2023, 2024)
         seasonal_by_year = {}
@@ -2941,31 +3005,32 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 6.0.4 - Mejoras Visuales
+    **Versión:** 6.0.5 - Debug y Histórico
     
     ---
+    
+    **🔧 VERSIÓN 6.0.5 (Nov 6, 2025):**
+    • ✅ Histórico en gráfico de proyecciones ⭐
+    • ✅ Debug visible de estacionalidad
+    • ✅ Fallback a factores reales (<12 meses)
+    • ✅ Tabla de factores para verificación
     
     **🎨 VERSIÓN 6.0.4 (Nov 6, 2025):**
     • ✅ Gráficos más claros (líneas gruesas)
     • ✅ Marcadores más grandes
-    • ✅ Instrucciones de visualización
     
     **🔧 VERSIÓN 6.0.3 (Nov 6, 2025):**
     • ✅ Corrección: Gráficos con estacionalidad
-    • ✅ Metodología unificada (v5.0.2)
-    • ✅ Proyecciones NO lineales ✓
+    • ✅ Metodología unificada
     
     **📊 VERSIÓN 6.0.2 (Nov 6, 2025):**
     • ✅ Gráfico de Revenue por Escenario
-    • ✅ Visualización clara de estacionalidad
     
     **🔄 VERSIÓN 6.0.1 (Nov 6, 2025):**
     • ✅ Estacionalidad en proyecciones
-    • ✅ Factor diciembre recalibrado
     
     **🎨 VERSIÓN 6.0.0 (Nov 5, 2025):**
     • ✅ Branding y colores institucionales
-    • ✅ Sidebar persistente optimizado
     • ✅ Fase C: Navegación por pestañas superiores
     
     ---
@@ -4415,15 +4480,29 @@ with tab5:
         st.markdown("### 📊 Comparación de Escenarios")
         
         # 🆕 v6.0.1: GRÁFICO DE REVENUE POR ESCENARIO (muestra estacionalidad claramente)
-        st.markdown("#### 💰 Revenue Proyectado por Escenario")
+        st.markdown("#### 💰 Revenue Proyectado por Escenario + Histórico")
         
-        # 🆕 v6.0.4: Mensaje destacado sobre estacionalidad
+        # 🆕 v6.0.5: Debug - Mostrar qué factores se están usando
         if data['seasonal_factors']:
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                st.metric("📊 Variabilidad", "Altibajos Estacionales")
-            with col2:
-                st.caption("⚠️ **IMPORTANTE:** Las curvas muestran altibajos naturales por estacionalidad. Usa hover en los puntos para ver valores exactos. Proyecta 12 meses para ver el ciclo completo (pico en julio, valle en diciembre).")
+            # Verificar si hay variación significativa en los factores
+            factores_values = list(data['seasonal_factors'].values())
+            if len(factores_values) > 0:
+                factor_min = min(factores_values)
+                factor_max = max(factores_values)
+                variacion_pct = ((factor_max / factor_min) - 1) * 100 if factor_min > 0 else 0
+                
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    st.metric("📊 Estacionalidad", "Activada ✅")
+                with col2:
+                    st.metric("⚡ Variación", f"{variacion_pct:.0f}%")
+                with col3:
+                    if variacion_pct < 50:
+                        st.warning(f"⚠️ Variación baja ({variacion_pct:.0f}%). Puede verse casi lineal. Asegúrate de tener 12+ meses de datos.")
+                    else:
+                        st.success(f"✅ Variación alta ({variacion_pct:.0f}%). Deberías ver altibajos claros.")
+        else:
+            st.warning("⚠️ Sin factores estacionales. Proyecciones serán lineales.")
         
         fig_revenue = go.Figure()
 
@@ -4432,15 +4511,41 @@ with tab5:
             'Moderado': '#2563EB',
             'Optimista': '#10B981'
         }
-
-        for escenario, df_proj in proyecciones.items():
+        
+        # 🆕 v6.0.5: AGREGAR HISTÓRICO al gráfico
+        if data['historical']['data'] is not None and len(data['historical']['data']) > 0:
+            df_hist = data['historical']['data']
+            # Limitar a últimos 12 meses para no saturar el gráfico
+            df_hist_recent = df_hist.tail(12)
+            
+            # Crear etiquetas de mes históricas
+            historico_x = [f"H{i+1}" for i in range(len(df_hist_recent))]
+            
             fig_revenue.add_trace(go.Scatter(
-                x=[f"Mes {m}" for m in df_proj['mes']],
+                x=historico_x,
+                y=df_hist_recent['revenue'],
+                mode='lines+markers',
+                name='Histórico (últimos 12m)',
+                line=dict(color='#6B7280', width=2, dash='dot'),
+                marker=dict(size=6, symbol='diamond'),
+                hovertemplate='<b>Histórico</b><br>' +
+                             'Revenue: $%{y:,.0f}<br>' +
+                             '<extra></extra>',
+                showlegend=True
+            ))
+
+        # Agregar proyecciones por escenario
+        for escenario, df_proj in proyecciones.items():
+            # Crear etiquetas de mes proyectadas
+            proyeccion_x = [f"P{m}" for m in df_proj['mes']]
+            
+            fig_revenue.add_trace(go.Scatter(
+                x=proyeccion_x,
                 y=df_proj['revenue'],
                 mode='lines+markers',
                 name=escenario,
-                line=dict(color=colores[escenario], width=4),  # 🆕 Línea más gruesa
-                marker=dict(size=10, symbol='circle'),  # 🆕 Marcadores más grandes
+                line=dict(color=colores[escenario], width=4),
+                marker=dict(size=10, symbol='circle'),
                 hovertemplate='<b>%{fullData.name}</b><br>' +
                              'Mes: %{x}<br>' +
                              'Revenue: $%{y:,.0f}<br>' +
@@ -4448,9 +4553,9 @@ with tab5:
             ))
 
         fig_revenue.update_layout(
-            height=450,
+            height=500,
             hovermode='x unified',
-            xaxis_title='Período',
+            xaxis_title='Período (H=Histórico, P=Proyección)',
             yaxis_title='Revenue (USD)',
             yaxis=dict(tickformat='$,.0f'),
             legend=dict(orientation="h", yanchor="bottom", y=1.02)
@@ -4460,24 +4565,36 @@ with tab5:
         
         # Agregar nota explicativa sobre estacionalidad
         if data['seasonal_factors']:
-            st.info("""
-            💡 **Cómo interpretar este gráfico:**
-            
-            **Altibajos Estacionales Esperados:**
-            - 📈 **PICOS:** Julio (+46.5%), Septiembre (+16.7%), Junio (+10.9%)
-            - 📉 **VALLES:** Diciembre (-45%), Enero (-24%)
-            
-            **Qué deberías ver:**
-            - ✅ Curvas con **altibajos evidentes**, NO líneas rectas
-            - ✅ Diferencia ~200% entre pico (julio) y valle (diciembre)
-            - ✅ Los 3 escenarios siguen el **mismo patrón** estacional
-            
-            **💡 Tips de visualización:**
-            - Proyecta **12 meses** para ver el ciclo completo
-            - Usa **hover** sobre los puntos para ver valores exactos
-            - Usa **zoom** (icono lupa) si las variaciones se ven pequeñas
-            - La diferencia entre escenarios está en el **nivel base**, no en el patrón
-            """)
+            with st.expander("💡 Cómo interpretar este gráfico y verificar la estacionalidad", expanded=False):
+                st.markdown("""
+                **📊 Factores Estacionales en Uso:**
+                """)
+                
+                # Mostrar los factores en una tabla compacta
+                factores_df = pd.DataFrame({
+                    'Mes': list(data['seasonal_factors'].keys()),
+                    'Factor': [f"{v:.3f}" for v in data['seasonal_factors'].values()],
+                    'Variación': [f"{(v-1)*100:+.1f}%" for v in data['seasonal_factors'].values()]
+                })
+                st.dataframe(factores_df, use_container_width=True, hide_index=True)
+                
+                st.markdown("""
+                **Altibajos Estacionales Esperados:**
+                - 📈 **PICOS:** Factores > 1.20 (ej: Julio 1.465 = +46.5%)
+                - 📉 **VALLES:** Factores < 0.80 (ej: Diciembre 0.550 = -45%)
+                
+                **Qué deberías ver en el gráfico:**
+                - ✅ **Línea Histórica (gris punteado):** Muestra tus datos reales de los últimos 12 meses
+                - ✅ **Líneas de Proyección (colores sólidos):** Deben mostrar altibajos si hay variación >50%
+                - ✅ **Diferencia ~200%** entre pico y valle si proyectas 12 meses
+                - ✅ Los 3 escenarios siguen el **mismo patrón** estacional (solo cambia el nivel)
+                
+                **💡 Si no ves altibajos claros:**
+                - Verifica que la **variación** arriba sea >50%
+                - Proyecta **12 meses** para ver el ciclo completo (pico julio, valle diciembre)
+                - Usa **zoom** en el gráfico si la escala es muy grande
+                - Los datos históricos pueden tener poca variación si el negocio es muy estable
+                """)
         
         st.markdown("---")
         
