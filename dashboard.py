@@ -954,7 +954,8 @@ def procesar_archivos_reales(files_dict):
         # 4. Calcular factores estacionales
         estacionalidad = util_data['estacionalidad']
         avg_revenue = np.mean(list(estacionalidad.values()))
-        seasonal_factors = {mes: val/avg_revenue for mes, val in estacionalidad.items()}
+        # Protección contra división por cero
+        seasonal_factors = {mes: (val/avg_revenue if avg_revenue > 0 else 1.0) for mes, val in estacionalidad.items()}
         
         # ✅ v5.0.4: Calcular seasonal_by_year para años completos (2023, 2024)
         seasonal_by_year = {}
@@ -4600,7 +4601,10 @@ with tab6:
         revenue_prom = data['historical']['revenue_promedio']
         burn_rate_calc = data['financial']['burn_rate']
         flujo_neto = revenue_prom - burn_rate_calc
-        margen = (flujo_neto / revenue_prom) * 100
+        
+        # Protección contra división por cero
+        margen = (flujo_neto / revenue_prom * 100) if revenue_prom > 0 else 0
+        meses_cobertura = (efectivo_actual / burn_rate_calc) if burn_rate_calc > 0 else float('inf')
 
         st.info(f"""
         💡 **Insight Financiero (v4.6.0):** 
@@ -4609,7 +4613,7 @@ with tab6:
         **${flujo_neto:,.0f}**/mes (margen {margen:.1f}%).
 
         Esto indica una operación saludable con capacidad de:
-        • Cubrir {(efectivo_actual / burn_rate_calc):.1f} meses de operación con efectivo actual
+        • Cubrir {meses_cobertura:.1f} meses de operación con efectivo actual
         • Generar excedentes consistentes para inversión o distribución
         • Mantener margen de protección adecuado configurado en {st.session_state.meses_colchon} meses
         """)
