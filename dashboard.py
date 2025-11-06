@@ -1307,7 +1307,26 @@ def check_password():
         <p style='color: #64748B; font-size: 1.2rem;'>Sistema de Pronóstico y Análisis Financiero</p>
         <p style='color: #64748B;'>Ingrese la contraseña para acceder</p>
     </div>
-    """, unsafe_allow_html=True)
+    
+    
+    /* 🆕 v6.0.0 FASE C: Pestañas fijas (sticky) */
+    .stTabs [data-baseweb="tab-list"] {
+        position: sticky;
+        top: 0;
+        background-color: white;
+        z-index: 999;
+        padding: 1rem 0 0.5rem 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.5rem 1.5rem;
+        font-weight: 500;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #F8F9FA;
+    }""", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -2675,6 +2694,7 @@ with st.sidebar:
     
     if escenario != st.session_state.escenario_proyeccion:
         st.session_state.escenario_proyeccion = escenario
+        # Forzar recálculo limpiando datos procesados temporalmente
         st.rerun()
     
     # Indicador visual del escenario actual
@@ -2684,6 +2704,9 @@ with st.sidebar:
         'Optimista': '🔵'
     }
     st.caption(f"{emoji_escenario[escenario]} Escenario: **{escenario}**")
+
+    
+    st.info("💡 **Tip:** Al cambiar el escenario, haz clic en cualquier pestaña (ej: Proyecciones) para ver los cambios reflejados.", icon="ℹ️")
     
     st.markdown("---")
     
@@ -2735,16 +2758,16 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 
 with tab1:
     st.markdown("## 📁 Carga de Datos")
-    
+
     st.info("""
     **Instrucciones:**
-    
+
     1. Seleccione si desea usar datos de demostración o cargar sus propios archivos Excel
     2. Si carga archivos, asegúrese de subir los 5 archivos requeridos
     3. Presione el botón **"Procesar Datos"** para iniciar el análisis
     4. Una vez procesados, los datos estarán disponibles en todas las pestañas
     """)
-    
+
     # Indicador de estado actual
     if st.session_state.datos_procesados is not None:
         st.success("🟢 **Datos reales cargados y procesados exitosamente**")
@@ -2758,14 +2781,14 @@ with tab1:
         st.info("🔵 **Usando datos de demostración** (métricas basadas en históricos reales 2023-2025)")
     elif st.session_state.data_source in ['none', 'upload']:
         st.warning("⚪ **Sin datos cargados** - Cargue archivos abajo para comenzar")
-    
+
     st.markdown("---")
-    
+
     # Selector de fuente de datos
     st.markdown("### 📊 Seleccionar Fuente de Datos")
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         if st.button("📈 Usar Datos de Demostración", use_container_width=True, type="secondary"):
             if st.session_state.datos_procesados is not None:
@@ -2775,20 +2798,20 @@ with tab1:
             else:
                 st.session_state.data_source = 'demo'
                 st.rerun()
-    
+
     with col2:
         use_own = st.button("📁 Preparar Carga de Archivos", use_container_width=True, type="primary")
         if use_own:
             if st.session_state.datos_procesados is None:
                 st.session_state.data_source = 'upload'
                 st.info("👇 Cargue sus archivos abajo")
-    
+
     # Sección de carga de archivos (solo visible si seleccionó cargar propios)
     if st.session_state.data_source in ['upload', 'real'] or st.session_state.datos_procesados is not None:
         st.markdown("---")
         st.markdown("### 📁 Subir Archivos Excel")
         st.info("💡 Suba los 5 archivos requeridos para el análisis completo")
-        
+
         st.markdown("**Históricos (2023-2025):**")
         file_2023 = st.file_uploader(
             "Utilization Report 2023",
@@ -2796,21 +2819,21 @@ with tab1:
             key="file_2023",
             help="Archivo: Utilization_Report_2023.xlsx"
         )
-        
+
         file_2024 = st.file_uploader(
             "Utilization Report 2024",
             type=['xlsx', 'xls'],
             key="file_2024",
             help="Archivo: Utilization_Report_2024.xlsx"
         )
-        
+
         file_2025 = st.file_uploader(
             "Utilization Report 2025",
             type=['xlsx', 'xls'],
             key="file_2025",
             help="Archivo: Utilization_Report_2025.xlsx"
         )
-        
+
         st.markdown("**Estado Actual:**")
         file_weekly = st.file_uploader(
             "Weekly Operation Report",
@@ -2818,7 +2841,7 @@ with tab1:
             key="file_weekly",
             help="Archivo: Weekly_Operation_Report.xlsx"
         )
-        
+
         st.markdown("**Financiero:**")
         file_financial = st.file_uploader(
             "Estado Financiero",
@@ -2826,12 +2849,12 @@ with tab1:
             key="file_financial",
             help="Archivo: Informe_financiero.xlsx"
         )
-        
+
         all_files = all([file_2023, file_2024, file_2025, file_weekly, file_financial])
-        
+
         if all_files:
             st.success("✅ Todos los archivos cargados")
-            
+
             if st.button("🚀 Procesar Datos", use_container_width=True, type="primary"):
                 with st.spinner("⚙️ Procesando archivos Excel..."):
                     try:
@@ -2843,26 +2866,26 @@ with tab1:
                             'file_weekly': file_weekly,
                             'file_financial': file_financial
                         }
-                        
+
                         # Preservar archivos en session_state
                         if 'uploaded_files' not in st.session_state:
                             st.session_state.uploaded_files = {}
-                        
+
                         st.session_state.uploaded_files['file_2023'] = file_2023
                         st.session_state.uploaded_files['file_2024'] = file_2024
                         st.session_state.uploaded_files['file_2025'] = file_2025
                         st.session_state.uploaded_files['file_weekly'] = file_weekly
                         st.session_state.uploaded_files['file_financial'] = file_financial
-                        
+
                         # Procesar archivos
                         st.info("📊 Extrayendo datos de Utilization Reports...")
                         datos_reales = procesar_archivos_reales(files_dict)
-                        
+
                         if datos_reales:
                             # Guardar datos procesados
                             st.session_state.data_source = 'real'
                             st.session_state.datos_procesados = datos_reales
-                            
+
                             st.success("✅ Archivos procesados exitosamente")
                             st.success(f"📈 Revenue promedio: ${datos_reales['historical']['revenue_promedio']:,.0f}")
                             st.success(f"💰 Burn Rate: ${datos_reales['financial']['burn_rate']:,.0f}")
@@ -2871,7 +2894,7 @@ with tab1:
                         else:
                             st.error("❌ Error al procesar archivos. Revise el formato de los archivos.")
                             st.session_state.data_source = 'demo'
-                            
+
                     except Exception as e:
                         st.error(f"❌ Error durante el procesamiento: {str(e)}")
                         st.session_state.data_source = 'demo'
@@ -2882,14 +2905,14 @@ with tab1:
             if not file_2025: missing.append("Util 2025")
             if not file_weekly: missing.append("Weekly")
             if not file_financial: missing.append("Financiero")
-            
+
             st.warning(f"⚠️ Faltan: {', '.join(missing)}")
-    
+
     st.markdown("---")
     st.markdown("### 💵 Configuración Actual")
-    
+
     st.info("💡 El efectivo disponible y otros parámetros se configuran en el panel lateral izquierdo")
-    
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("💰 Efectivo Actual", f"${efectivo_actual:,.0f}")
@@ -2899,36 +2922,36 @@ with tab1:
         st.metric("📊 Escenario Activo", st.session_state.escenario_proyeccion)
 
 
-# =============================================================================
-# TAB 2: INGRESO MANUAL
-# =============================================================================
+    # =============================================================================
+    # TAB 2: INGRESO MANUAL
+    # =============================================================================
 
 with tab2:
 
     st.markdown("## 📝 Ingreso Manual de Cotizaciones y Contratos")
-    
+
     st.info("""
     **Funcionalidad:** Permite ingresar manualmente cotizaciones y contratos futuros para 
     analizar su impacto en las proyecciones financieras.
-    
+
     🔹 **Cotizaciones:** Oportunidades con probabilidad de cierre  
     🔹 **Contratos:** Compromisos confirmados con equipos asignados
     """)
-    
+
     # Tabs para cotizaciones y contratos
-    tab1, tab2, tab3 = st.tabs(["📋 Cotizaciones", "📄 Contratos", "📊 Resumen"])
-    
+    sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📋 Cotizaciones", "📄 Contratos", "📊 Resumen"])
+
     # =========================================================================
     # TAB 1: COTIZACIONES
     # =========================================================================
-    
-    with tab1:
+
+    with sub_tab1:
         st.markdown("### 📋 Ingresar Nueva Cotización")
-        
+
         # Variables de estado para equipos de cotización
         if 'equipos_temp_quote' not in st.session_state:
             st.session_state.equipos_temp_quote = []
-        
+
         # Tipos de equipos comunes en SPT
         tipos_equipos = [
             "CoreMaster CM3",
@@ -2952,7 +2975,7 @@ with tab2:
             "StructMaster",
             "Otro"
         ]
-        
+
         # 🆕 v4.9.3.1: OBTENER CLIENTES DESDE UTILIZATION REPORT REAL
         clientes_disponibles = ["Nuevo cliente..."]
         try:
@@ -2961,7 +2984,7 @@ with tab2:
             clientes_disponibles.extend(sorted(list(clientes_historicos)))
         except Exception as e:
             print(f"⚠️ Error cargando clientes históricos: {str(e)}")
-        
+
         # Agregar clientes de cotizaciones y contratos manuales
         try:
             clientes_manuales = []
@@ -2974,27 +2997,27 @@ with tab2:
             clientes_disponibles.extend(clientes_manuales)
         except:
             pass
-        
+
         # Eliminar duplicados y ordenar
         clientes_disponibles = ["Nuevo cliente..."] + sorted(list(set([c for c in clientes_disponibles if c and c != "Nuevo cliente..."])))
-        
+
         with st.form("form_cotizacion"):
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 quote_id = st.text_input(
                     "ID de Cotización",
                     placeholder="Ej: Q-2025-001",
                     help="Identificador único de la cotización"
                 )
-                
+
                 # Cliente con selectbox
                 cliente_seleccion = st.selectbox(
                     "Cliente",
                     options=clientes_disponibles,
                     help="Selecciona un cliente existente o ingresa uno nuevo"
                 )
-                
+
                 if cliente_seleccion == "Nuevo cliente...":
                     cliente = st.text_input(
                         "Nombre del Nuevo Cliente",
@@ -3003,19 +3026,19 @@ with tab2:
                     )
                 else:
                     cliente = cliente_seleccion
-                
+
                 fecha_cotizacion = st.date_input(
                     "Fecha de Cotización",
                     value=datetime.now(),
                     help="Fecha en que se genera la cotización"
                 )
-                
+
                 fecha_valida_hasta = st.date_input(
                     "Válida Hasta",
                     value=datetime.now() + timedelta(days=30),
                     help="Fecha límite de validez de la cotización"
                 )
-            
+
             with col2:
                 probabilidad_cierre = st.slider(
                     "Probabilidad de Cierre (%)",
@@ -3025,7 +3048,7 @@ with tab2:
                     step=5,
                     help="Probabilidad estimada de que la cotización se cierre"
                 )
-                
+
                 duracion_meses = st.number_input(
                     "Duración Estimada (meses)",
                     min_value=1,
@@ -3033,16 +3056,16 @@ with tab2:
                     value=12,
                     help="Duración estimada del contrato si se cierra"
                 )
-                
+
                 fecha_inicio_estimada = st.date_input(
                     "Fecha Inicio Estimada",
                     value=datetime.now() + timedelta(days=30),
                     help="Fecha estimada de inicio si se confirma"
                 )
-            
+
             st.markdown("#### Equipos Requeridos")
             st.caption("💡 Usa los botones abajo para agregar/eliminar equipos")
-            
+
             # Mostrar equipos actuales en el form
             if st.session_state.equipos_temp_quote:
                 for idx, eq in enumerate(st.session_state.equipos_temp_quote):
@@ -3053,25 +3076,25 @@ with tab2:
                         st.write(f"**Subtotal:** ${eq['tarifa_unitaria'] * eq['cantidad']:,.0f}")
             else:
                 st.info("👆 Usa el botón 'Agregar Equipo' abajo para incluir equipos en esta cotización")
-            
+
             st.markdown("#### Notas Adicionales")
             notas = st.text_area(
                 "Notas o Comentarios",
                 placeholder="Información adicional sobre la cotización...",
                 height=100
             )
-            
+
             # Botón de envío
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 submitted_quote = st.form_submit_button("💾 Guardar Cotización", use_container_width=True, type="primary")
             with col_btn2:
                 limpiar_form = st.form_submit_button("🗑️ Limpiar Form", use_container_width=True, key="form_limpiar_quote")
-            
+
             if limpiar_form:
                 st.session_state.equipos_temp_quote = []
                 st.rerun()
-            
+
             if submitted_quote:
                 if not quote_id or not cliente:
                     st.error("⚠️ Por favor completa los campos obligatorios: ID de Cotización y Cliente")
@@ -3082,10 +3105,10 @@ with tab2:
                 else:
                     # Calcular tarifa mensual total
                     tarifa_mensual = sum(eq['tarifa_unitaria'] * eq['cantidad'] for eq in st.session_state.equipos_temp_quote)
-                    
+
                     # Calcular revenue ponderado
                     revenue_ponderado = tarifa_mensual * duracion_meses * (probabilidad_cierre / 100.0)
-                    
+
                     # Crear cotización
                     nueva_cotizacion = {
                         'quote_id': quote_id,
@@ -3101,38 +3124,38 @@ with tab2:
                         'notas': notas,
                         'fecha_ingreso': datetime.now().isoformat()
                     }
-                    
+
                     # Guardar en session_state
                     st.session_state.cotizaciones_manuales.append(nueva_cotizacion)
-                    
+
                     # Limpiar equipos temporales
                     st.session_state.equipos_temp_quote = []
-                    
+
                     st.success(f"✅ Cotización {quote_id} guardada exitosamente!")
                     st.success(f"💰 Tarifa mensual total: ${tarifa_mensual:,.0f} USD")
                     st.success(f"📊 Revenue ponderado: ${revenue_ponderado:,.0f} USD")
                     st.rerun()
-        
+
         # FUERA del form: Agregar equipos
         st.markdown("---")
         st.markdown("#### ➕ Agregar Equipos a la Cotización")
-        
+
         col_eq1, col_eq2, col_eq3 = st.columns(3)
-        
+
         with col_eq1:
             nuevo_tipo = st.selectbox(
                 "Tipo de Equipo",
                 options=tipos_equipos,
                 key="nuevo_tipo_quote"
             )
-            
+
             if nuevo_tipo == "Otro":
                 nuevo_tipo = st.text_input(
                     "Especificar tipo",
                     key="nuevo_tipo_custom_quote",
                     placeholder="Ej: Mobile Crane"
                 )
-        
+
         with col_eq2:
             nueva_cantidad = st.number_input(
                 "Cantidad",
@@ -3142,15 +3165,15 @@ with tab2:
                 key="nueva_cantidad_quote",
                 help="Número de unidades de este tipo"
             )
-        
+
         with col_eq3:
             # ✅ v5.0.1: Obtener tarifa mensual sugerida desde datos reales de 2025
             tarifa_sugerida_mensual = get_tarifa_sugerida(nuevo_tipo) if nuevo_tipo else 0
-            
+
             # Mostrar tarifa sugerida prominentemente
             if tarifa_sugerida_mensual > 0:
                 st.success(f"💡 **Tarifa sugerida para {nuevo_tipo}:** ${tarifa_sugerida_mensual:,}/mes")
-            
+
             nueva_tarifa = st.number_input(
                 "Tarifa Unitaria Mensual (USD)",
                 min_value=0.0,
@@ -3159,7 +3182,7 @@ with tab2:
                 key="nueva_tarifa_quote",
                 help="Modifica la tarifa según tu negociación con el cliente"
             )
-        
+
         col_btn_eq1, col_btn_eq2 = st.columns([3, 1])
         with col_btn_eq1:
             if st.button("➕ Agregar Equipo a Cotización", use_container_width=True, type="primary", key="btn_agregar_equipo_quote"):
@@ -3173,17 +3196,17 @@ with tab2:
                     st.rerun()
                 else:
                     st.error("⚠️ Completa todos los campos del equipo")
-        
+
         with col_btn_eq2:
             if st.button("🗑️ Limpiar Equipos", use_container_width=True, key="btn_limpiar_equipos_quote"):
                 st.session_state.equipos_temp_quote = []
                 st.rerun()
-        
+
         # Mostrar cotizaciones existentes
         if st.session_state.cotizaciones_manuales:
             st.markdown("---")
             st.markdown("### 📋 Cotizaciones Guardadas")
-            
+
             for idx, quote in enumerate(st.session_state.cotizaciones_manuales):
                 with st.expander(f"{quote['quote_id']} - {quote['cliente']} ({quote['probabilidad_cierre']}%)"):
                     col1, col2, col3 = st.columns(3)
@@ -3193,10 +3216,10 @@ with tab2:
                         st.metric("Duración", f"{quote['duracion_meses']} meses")
                     with col3:
                         st.metric("Revenue Ponderado", f"${quote['revenue_ponderado']:,.0f}")
-                    
+
                     st.caption(f"Válida hasta: {quote['fecha_valida_hasta']}")
                     st.caption(f"Inicio estimado: {quote['fecha_inicio_estimada']}")
-                    
+
                     # Mostrar equipos
                     if 'equipos' in quote and quote['equipos']:
                         st.markdown("**Equipos:**")
@@ -3207,18 +3230,18 @@ with tab2:
                             else:
                                 # Formato antiguo
                                 st.write(f"• {eq['tipo']} - ${eq.get('tarifa_mensual', 0):,.0f}")
-                    
+
                     if st.button(f"🗑️ Eliminar", key=f"del_quote_{idx}"):
                         st.session_state.cotizaciones_manuales.pop(idx)
                         st.rerun()
-    
+
     # =========================================================================
     # TAB 2: CONTRATOS
     # =========================================================================
-    
-    with tab2:
+
+    with sub_tab2:
         st.markdown("### 📄 Ingresar Nuevo Contrato")
-        
+
         # 🆕 v4.9.3.1: OBTENER CLIENTES DESDE UTILIZATION REPORT REAL
         clientes_disponibles_c = ["Nuevo cliente..."]
         try:
@@ -3227,7 +3250,7 @@ with tab2:
             clientes_disponibles_c.extend(sorted(list(clientes_historicos)))
         except Exception as e:
             print(f"⚠️ Error cargando clientes históricos: {str(e)}")
-        
+
         # Agregar clientes de cotizaciones y contratos manuales
         try:
             for q in st.session_state.cotizaciones_manuales:
@@ -3238,20 +3261,20 @@ with tab2:
                     clientes_disponibles_c.append(c['cliente'])
         except:
             pass
-        
+
         # Eliminar duplicados y ordenar
         clientes_disponibles_c = ["Nuevo cliente..."] + sorted(list(set([c for c in clientes_disponibles_c if c and c != "Nuevo cliente..."])))
-        
+
         with st.form("form_contrato"):
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 contrato_id = st.text_input(
                     "ID del Contrato",
                     placeholder="Ej: C-2025-001",
                     help="Identificador único del contrato"
                 )
-                
+
                 # Cliente con selectbox
                 cliente_seleccion_c = st.selectbox(
                     "Cliente",
@@ -3259,7 +3282,7 @@ with tab2:
                     help="Selecciona un cliente existente o ingresa uno nuevo",
                     key="cliente_contrato_select"
                 )
-                
+
                 if cliente_seleccion_c == "Nuevo cliente...":
                     cliente_contrato = st.text_input(
                         "Nombre del Nuevo Cliente",
@@ -3268,19 +3291,19 @@ with tab2:
                     )
                 else:
                     cliente_contrato = cliente_seleccion_c
-                
+
                 fecha_inicio_contrato = st.date_input(
                     "Fecha de Inicio",
                     value=datetime.now(),
                     help="Fecha de inicio del contrato"
                 )
-                
+
                 duracion_tipo = st.radio(
                     "Tipo de Duración",
                     options=["Duración fija (meses)", "Fecha fin abierta"],
                     help="Selecciona si el contrato tiene duración definida o es abierto"
                 )
-            
+
             with col2:
                 if duracion_tipo == "Duración fija (meses)":
                     duracion_contrato_meses = st.number_input(
@@ -3295,47 +3318,47 @@ with tab2:
                     duracion_contrato_meses = None
                     st.info("📅 Contrato con fecha fin abierta (notificación con 1 mes de anticipación)")
                     fecha_fin_contrato = None
-                
+
                 estado_contrato = st.selectbox(
                     "Estado del Contrato",
                     options=["Activo", "Pendiente", "En negociación"],
                     help="Estado actual del contrato"
                 )
-            
+
             st.markdown("#### Equipos Asignados")
             st.caption("💡 La tarifa mensual total se calculará automáticamente según los equipos asignados")
-            
+
             # 🆕 v4.9.3: Mostrar equipos agregados DENTRO del form (solo visualización)
             if st.session_state.equipos_temp_contract:
                 st.markdown("##### Equipos agregados:")
                 for idx, eq in enumerate(st.session_state.equipos_temp_contract):
                     subtotal = eq['cantidad'] * eq['tarifa_unitaria']
                     st.write(f"{idx+1}. **{eq['cantidad']} x {eq['serial']} - {eq['tipo']}** - ${eq['tarifa_unitaria']:,.0f} c/u = ${subtotal:,.0f}")
-                
+
                 # Mostrar tarifa total
                 tarifa_total_preview = sum(eq['cantidad'] * eq['tarifa_unitaria'] for eq in st.session_state.equipos_temp_contract)
                 st.success(f"**Tarifa Mensual Total:** ${tarifa_total_preview:,.0f} USD")
             else:
                 st.info("👆 Agrega equipos usando los botones fuera del formulario")
-            
+
             st.markdown("#### Información Adicional")
             notas_contrato = st.text_area(
                 "Notas o Comentarios",
                 placeholder="Información adicional sobre el contrato...",
                 height=100
             )
-            
+
             # Botones de envío
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 submitted_contract = st.form_submit_button("💾 Guardar Contrato", use_container_width=True, type="primary")
             with col_btn2:
                 limpiar_form_contract = st.form_submit_button("🗑️ Limpiar Form", use_container_width=True, key="form_limpiar_contract")
-            
+
             if limpiar_form_contract:
                 st.session_state.equipos_temp_contract = []
                 st.rerun()
-            
+
             if submitted_contract:
                 if not contrato_id or not cliente_contrato:
                     st.error("⚠️ Por favor completa los campos obligatorios: ID del Contrato y Cliente")
@@ -3346,10 +3369,10 @@ with tab2:
                 else:
                     # Calcular tarifa mensual total de los equipos
                     tarifa_mensual_contrato = sum(eq['cantidad'] * eq['tarifa_unitaria'] for eq in st.session_state.equipos_temp_contract)
-                    
+
                     if tarifa_mensual_contrato == 0:
                         st.warning("⚠️ Advertencia: La tarifa mensual total es $0. Verifica las tarifas de los equipos.")
-                    
+
                     # Crear contrato
                     nuevo_contrato = {
                         'contrato_id': contrato_id,
@@ -3363,31 +3386,31 @@ with tab2:
                         'notas': notas_contrato,
                         'fecha_ingreso': datetime.now().isoformat()
                     }
-                    
+
                     # Guardar en session_state
                     st.session_state.contratos_manuales.append(nuevo_contrato)
-                    
+
                     # 🆕 v4.9.3: Limpiar equipos temporales
                     st.session_state.equipos_temp_contract = []
-                    
+
                     st.success(f"✅ Contrato {contrato_id} guardado exitosamente!")
                     st.success(f"💰 Tarifa mensual total: ${tarifa_mensual_contrato:,.0f} USD")
                     st.success(f"📦 {len(nuevo_contrato['equipos'])} equipo(s) asignado(s)")
                     st.rerun()
-        
+
         # =========================================================================
         # 🆕 v4.9.3: FUERA DEL FORM - Agregar equipos dinámicamente
         # =========================================================================
-        
+
         st.markdown("---")
         st.markdown("#### ➕ Agregar Equipos al Contrato")
-        
+
         # Obtener lista de equipos disponibles del Weekly Report
         equipos_disponibles = get_equipos_disponibles()
         equipos_options = ["Seleccionar equipo..."] + [eq['display'] for eq in equipos_disponibles]
-        
+
         col_eq1, col_eq2, col_eq3, col_eq4 = st.columns(4)
-        
+
         with col_eq1:
             equipo_seleccionado_display = st.selectbox(
                 "Equipo Disponible",
@@ -3395,7 +3418,7 @@ with tab2:
                 key="equipo_contrato_select",
                 help="Equipos con estado Available o StandBy del Weekly Report"
             )
-        
+
         # Buscar el equipo completo en la lista
         equipo_seleccionado = None
         if equipo_seleccionado_display != "Seleccionar equipo...":
@@ -3403,7 +3426,7 @@ with tab2:
                 if eq['display'] == equipo_seleccionado_display:
                     equipo_seleccionado = eq
                     break
-        
+
         with col_eq2:
             ubicacion_equipo = st.text_input(
                 "Ubicación",
@@ -3411,7 +3434,7 @@ with tab2:
                 placeholder="Ej: Bogotá",
                 help="Ubicación donde operará el equipo"
             )
-        
+
         with col_eq3:
             cantidad_equipo = st.number_input(
                 "Cantidad",
@@ -3421,18 +3444,18 @@ with tab2:
                 key="cantidad_contrato",
                 help="Número de unidades de este equipo"
             )
-        
+
         with col_eq4:
             # ✅ v5.0: Obtener tarifa sugerida desde datos históricos
             tarifas_sugeridas = obtener_tarifas_sugeridas_por_equipo()
             tipo_equipo = equipo_seleccionado['tipo'] if equipo_seleccionado else None
             # ✅ v5.0.1: Obtener tarifa mensual sugerida desde datos reales de 2025
             tarifa_sugerida_mensual = get_tarifa_sugerida(tipo_equipo) if tipo_equipo else 0
-            
+
             # Mostrar tarifa sugerida prominentemente
             if tarifa_sugerida_mensual > 0:
                 st.success(f"💡 **Tarifa sugerida para {tipo_equipo}:** ${tarifa_sugerida_mensual:,}/mes")
-            
+
             tarifa_equipo = st.number_input(
                 "Tarifa Unitaria Mensual (USD)",
                 min_value=0.0,
@@ -3441,7 +3464,7 @@ with tab2:
                 key="tarifa_contrato",
                 help="Modifica la tarifa según tu negociación con el cliente"
             )
-        
+
         col_btn_eq1, col_btn_eq2 = st.columns([3, 1])
         with col_btn_eq1:
             if st.button("➕ Agregar Equipo al Contrato", use_container_width=True, type="primary", key="btn_agregar_equipo_contract"):
@@ -3462,17 +3485,17 @@ with tab2:
                     st.error("⚠️ Por favor ingresa la ubicación")
                 else:
                     st.error("⚠️ La tarifa debe ser mayor a $0")
-        
+
         with col_btn_eq2:
             if st.button("🗑️ Limpiar Equipos", use_container_width=True, key="btn_limpiar_equipos_contract"):
                 st.session_state.equipos_temp_contract = []
                 st.rerun()
-        
+
         # Mostrar contratos existentes
         if st.session_state.contratos_manuales:
             st.markdown("---")
             st.markdown("### 📄 Contratos Guardados")
-            
+
             for idx, contract in enumerate(st.session_state.contratos_manuales):
                 with st.expander(f"{contract['contrato_id']} - {contract['cliente']} ({contract['estado']})"):
                     col1, col2, col3 = st.columns(3)
@@ -3483,9 +3506,9 @@ with tab2:
                         st.metric("Duración", duracion_display)
                     with col3:
                         st.metric("Equipos", f"{len(contract['equipos'])} unidades")
-                    
+
                     st.caption(f"Inicio: {contract['fecha_inicio']} | Fin: {contract['fecha_fin']}")
-                    
+
                     # 🆕 v4.9.3: Mostrar equipos detallados
                     if 'equipos' in contract and contract['equipos']:
                         st.markdown("**Equipos Asignados:**")
@@ -3501,32 +3524,32 @@ with tab2:
                             else:
                                 # Formato muy antiguo
                                 st.write(f"• {eq['tipo']} - ${eq.get('tarifa_mensual', 0):,.0f}")
-                    
+
                     if st.button(f"🗑️ Eliminar", key=f"del_contract_{idx}"):
                         st.session_state.contratos_manuales.pop(idx)
                         st.rerun()
-    
+
     # =========================================================================
     # TAB 3: RESUMEN
     # =========================================================================
-    
-    with tab3:
+
+    with sub_tab3:
         st.markdown("### 📊 Resumen de Ingreso Manual")
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.markdown("#### 📋 Cotizaciones")
             num_cotizaciones = len(st.session_state.cotizaciones_manuales)
             st.metric("Total Cotizaciones", num_cotizaciones)
-            
+
             if num_cotizaciones > 0:
                 revenue_ponderado_total = sum(q['revenue_ponderado'] for q in st.session_state.cotizaciones_manuales)
                 tarifa_mensual_total_quotes = sum(q['tarifa_mensual'] for q in st.session_state.cotizaciones_manuales)
-                
+
                 st.metric("Revenue Ponderado Total", f"${revenue_ponderado_total:,.0f}")
                 st.metric("Tarifa Mensual Total (si todas cierran)", f"${tarifa_mensual_total_quotes:,.0f}")
-                
+
                 # Tabla de cotizaciones
                 st.markdown("##### Detalle de Cotizaciones")
                 df_quotes = pd.DataFrame([
@@ -3542,19 +3565,19 @@ with tab2:
                 st.dataframe(df_quotes, use_container_width=True, hide_index=True)
             else:
                 st.info("No hay cotizaciones ingresadas aún")
-        
+
         with col2:
             st.markdown("#### 📄 Contratos")
             num_contratos = len(st.session_state.contratos_manuales)
             st.metric("Total Contratos", num_contratos)
-            
+
             if num_contratos > 0:
                 tarifa_mensual_total_contracts = sum(c['tarifa_mensual_total'] for c in st.session_state.contratos_manuales)
                 equipos_totales = sum(len(c['equipos']) for c in st.session_state.contratos_manuales)
-                
+
                 st.metric("Tarifa Mensual Total", f"${tarifa_mensual_total_contracts:,.0f}")
                 st.metric("Equipos Asignados", equipos_totales)
-                
+
                 # Tabla de contratos
                 st.markdown("##### Detalle de Contratos")
                 df_contracts = pd.DataFrame([
@@ -3570,25 +3593,25 @@ with tab2:
                 st.dataframe(df_contracts, use_container_width=True, hide_index=True)
             else:
                 st.info("No hay contratos ingresados aún")
-        
+
         # Resumen consolidado
         if num_cotizaciones > 0 or num_contratos > 0:
             st.markdown("---")
             st.markdown("#### 💡 Impacto en Proyecciones")
-            
+
             st.info("""
             **Próximos pasos:**
-            
+
             Estos contratos y cotizaciones ingresados se utilizarán para:
-            
+
             1. **Ajustar los escenarios** (Conservador/Moderado/Optimista) según probabilidades de cierre
             2. **Proyectar revenue futuro** considerando nuevos contratos confirmados
             3. **Analizar disponibilidad de equipos** para nuevas oportunidades
             4. **Optimizar la planificación financiera** con vista a compromisos futuros
-            
+
             En la siguiente actualización, estos datos se integrarán automáticamente en las proyecciones.
             """)
-            
+
             # Botón para limpiar todos los datos
             if st.button("🗑️ Limpiar Todos los Datos", type="secondary"):
                 if st.checkbox("⚠️ Confirmar eliminación de todos los datos"):
@@ -3598,14 +3621,14 @@ with tab2:
                     st.rerun()
 
 
-# =============================================================================
-# TAB 3: RESUMEN EJECUTIVO
-# =============================================================================
+    # =============================================================================
+    # TAB 3: RESUMEN EJECUTIVO
+    # =============================================================================
 
 with tab3:
 
     st.markdown("## 🎯 Resumen Ejecutivo")
-    
+
     # ✅ v5.0.3: Indicador visual actualizado con nuevos estados
     if st.session_state.datos_procesados is not None:
         st.success("🟢 **Visualizando DATOS REALES** del archivo cargado")
@@ -3613,10 +3636,10 @@ with tab3:
         st.info("🔵 **Visualizando DATOS DE DEMOSTRACIÓN** (históricos 2023-2025 con métricas reales del backend)")
     elif st.session_state.data_source in ['none', 'upload']:
         st.warning("⚪ **Sin datos cargados** - Todos los valores en $0. Cargue archivos y presione 'Procesar Datos' para comenzar el análisis.")
-    
+
     revenue_mensual = data['historical']['revenue_promedio']
     burn_rate = data['financial']['burn_rate']
-    
+
     # ✅ v5.0.3: Usar proyecciones por escenario que incluyen contratos/cotizaciones
     proyecciones_df = generar_proyecciones_por_escenario(
         revenue_mensual,
@@ -3625,7 +3648,7 @@ with tab3:
         escenario=st.session_state.escenario_proyeccion
     )
     flujos_proyectados = proyecciones_df['flujo_neto'].tolist()
-    
+
     runway = calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate)
     # 🆕 v4.6.0: Pasar meses_colchon configurado por el usuario
     analisis_cash = calcular_necesidades_excedentes_mejorado(
@@ -3634,10 +3657,10 @@ with tab3:
         burn_rate,
         st.session_state.meses_colchon
     )
-    
+
     # KPIs
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         st.markdown('<div class="kpi-card">', unsafe_allow_html=True)
         st.metric(
@@ -3646,7 +3669,7 @@ with tab3:
             delta=None
         )
         st.markdown('</div>', unsafe_allow_html=True)
-    
+
     with col2:
         st.markdown('<div class="kpi-card">', unsafe_allow_html=True)
         runway_color = "🟢" if runway > 12 else ("🟡" if runway > 6 else "🔴")
@@ -3656,7 +3679,7 @@ with tab3:
             delta=None
         )
         st.markdown('</div>', unsafe_allow_html=True)
-    
+
     with col3:
         st.markdown('<div class="kpi-card">', unsafe_allow_html=True)
         # ✅ v5.0.4: Mostrar balance_proyectado real (no excedente/déficit)
@@ -3669,7 +3692,7 @@ with tab3:
             help="Efectivo proyectado al final de 3 meses: Efectivo Actual + Flujos Netos Proyectados. Representa el efectivo disponible esperado."
         )
         st.markdown('</div>', unsafe_allow_html=True)
-    
+
     with col4:
         st.markdown('<div class="kpi-card">', unsafe_allow_html=True)
         margen = data['financial']['margen_operativo']
@@ -3681,15 +3704,15 @@ with tab3:
             help="Margen operativo real basado en datos del informe financiero. Refleja la eficiencia de la operación."
         )
         st.markdown('</div>', unsafe_allow_html=True)
-    
+
     st.markdown("---")
-    
+
     # Análisis de Cash Flow
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.markdown("### 📊 Métricas Clave")
-        
+
         metrics_df = pd.DataFrame({
             'Métrica': [
                 'Revenue Mensual Promedio',
@@ -3706,25 +3729,25 @@ with tab3:
                 f"${data['financial']['costos_variables']:,.0f}"
             ]
         })
-        
+
         st.dataframe(metrics_df, use_container_width=True, hide_index=True)
-        
+
         st.info(f"""
         💡 **Metodología de Burn Rate (v4.6.0):**  
         Los datos están basados en información real del backend. El burn rate se calcula 
         dinámicamente: **${data['financial']['gastos_fijos']:,.0f}** (gastos fijos) + 
         **{data['financial']['tasa_costos_variables']*100:.2f}%** del revenue (costos variables).
-        
+
         Con el revenue promedio actual (${revenue_mensual:,.0f}), el burn rate es 
         **${burn_rate:,.0f}**/mes, resultando en un margen operativo del 
         **{data['financial']['margen_operativo']*100:.1f}%**.
         """)
-    
+
     with col2:
         st.markdown("### 🏆 Top 5 Clientes 2025")
-        
+
         top_clients = data['historical']['top_clients']
-        
+
         # ✅ v5.0.3: Manejar top_clients como dict o como estructura vacía
         if top_clients and isinstance(top_clients, dict):
             # Convertir dict a lista de tuplas y tomar top 5
@@ -3737,15 +3760,15 @@ with tab3:
             # Mostrar mensaje cuando no hay datos
             st.info("No hay datos de clientes disponibles. Cargue archivos para ver clientes reales.")
             st.caption("💡 Los clientes se extraerán del Utilization Report 2025")
-    
+
     # Proyección 3 meses
     st.markdown("### 📈 Proyección de Flujo (3 meses)")
-    
+
     proyeccion_df = pd.DataFrame({
         'Mes': ['Mes 1', 'Mes 2', 'Mes 3'],
         'Flujo Neto': flujos_proyectados
     })
-    
+
     fig = px.bar(
         proyeccion_df,
         x='Mes',
@@ -3754,25 +3777,25 @@ with tab3:
         color='Flujo Neto',
         color_continuous_scale=['red', 'yellow', 'green']
     )
-    
+
     fig.update_layout(height=400, showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
-    
+
     # Balance al final de 3 meses
     balance_3m = analisis_cash['balance_proyectado']
     necesidades = analisis_cash['necesidades_minimas']
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.metric("Balance Proyectado (3m)", f"${balance_3m:,.0f}")
-    
+
     with col2:
         # 🆕 v4.6.1: Tooltip dinámico según meses configurados
         meses_texto = f"{st.session_state.meses_colchon} {'mes' if st.session_state.meses_colchon == 1 else 'meses'}"
         st.metric("Necesidades Mínimas", f"${necesidades:,.0f}", 
                  help=f"{meses_texto} de burn rate como margen de protección")
-    
+
     with col3:
         excedente_color = "normal" if analisis_cash['excedente_deficit'] > 0 else "inverse"
         st.metric(
@@ -3780,20 +3803,20 @@ with tab3:
             f"${analisis_cash['excedente_deficit']:,.0f}",
             delta_color=excedente_color
         )
-    
+
     # =========================================================================
     # 🆕 v4.8.0: FASE 3 - GESTIÓN DE EXCEDENTES E INVERSIONES
     # =========================================================================
-    
+
     st.markdown("---")
     st.markdown("### 💰 Gestión de Excedentes e Inversiones Temporales")
-    
+
     st.info("""
     **Estrategia de Inversión:** Los excedentes que superen las necesidades mínimas pueden invertirse 
     en instrumentos de bajo riesgo en Colombia para generar rentabilidad adicional mientras no se necesitan 
     para operación. Los fondos se liquidan automáticamente con la anticipación configurada.
     """)
-    
+
     # 🆕 v4.8.1: Generar proyecciones DETERMINISTAS según escenario seleccionado
     # CORRECCIÓN: Elimina np.random para que proyecciones sean consistentes
     proyecciones_3m = generar_proyecciones_por_escenario(
@@ -3802,7 +3825,7 @@ with tab3:
         meses=3,
         escenario=st.session_state.escenario_proyeccion
     )
-    
+
     # Calcular excedentes invertibles (inversiones VIRTUALES - no afectan balance)
     df_excedentes = calcular_excedentes_invertibles(
         proyecciones_3m, 
@@ -3811,77 +3834,77 @@ with tab3:
         st.session_state.meses_colchon,
         st.session_state.dias_liquidacion
     )
-    
+
     # Generar recomendaciones de inversión
     df_recomendaciones = generar_recomendaciones_inversion(df_excedentes, rentabilidad_estimada=0.10)
-    
+
     # Mostrar análisis de excedentes
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.markdown("#### 📊 Análisis de Excedentes por Mes")
-        
+
         # Preparar tabla para mostrar
         df_display = df_excedentes[['mes', 'balance_disponible', 'necesidades_minimas', 'excedente_invertible']].copy()
         df_display.columns = ['Mes', 'Balance Disponible', 'Necesidades Mínimas', 'Excedente Invertible']
-        
+
         # Formatear valores
         for col in ['Balance Disponible', 'Necesidades Mínimas', 'Excedente Invertible']:
             df_display[col] = df_display[col].apply(lambda x: f"${x:,.0f}")
-        
+
         st.dataframe(df_display, use_container_width=True, hide_index=True)
-    
+
     with col2:
         st.markdown("#### 💼 Recomendaciones de Inversión")
-        
+
         if not df_recomendaciones.empty:
             # Preparar tabla de recomendaciones
             df_rec_display = df_recomendaciones[['mes', 'monto_invertible', 'instrumento_sugerido', 'rentabilidad_estimada_mensual']].copy()
             df_rec_display.columns = ['Mes', 'Monto', 'Instrumento', 'Rendimiento Est.']
-            
+
             # Formatear valores
             df_rec_display['Monto'] = df_rec_display['Monto'].apply(lambda x: f"${x:,.0f}")
             df_rec_display['Rendimiento Est.'] = df_rec_display['Rendimiento Est.'].apply(lambda x: f"${x:,.0f}")
-            
+
             st.dataframe(df_rec_display, use_container_width=True, hide_index=True)
-            
+
             # Mostrar resumen
             total_invertible = df_recomendaciones['monto_invertible'].sum()
             total_rendimiento = df_recomendaciones['rentabilidad_estimada_mensual'].sum()
-            
+
             st.success(f"💰 **Total Invertible:** ${total_invertible:,.0f}")
             st.success(f"📈 **Rendimiento Estimado:** ${total_rendimiento:,.0f}")
         else:
             st.warning("⚠️ No hay excedentes disponibles para inversión en los próximos 3 meses.")
             st.caption("Los fondos disponibles son necesarios para cubrir las operaciones y el margen de protección.")
-    
+
     # Alertas y calendario de liquidación
     if not df_recomendaciones.empty:
         st.markdown("#### ⏰ Calendario de Liquidación")
-        
+
         for idx, row in df_recomendaciones.iterrows():
             dias_config = st.session_state.dias_liquidacion
             st.info(
                 f"🗓️ **Mes {int(row['mes'])}:** Invertir ${row['monto_invertible']:,.0f} | "
                 f"Liquidar {dias_config} días antes del Mes {int(row['liquidar_antes_mes'])}"
             )
-    
+
     st.caption("""
     **Instrumentos Sugeridos:**
     - **CDTs (40%):** Certificados de Depósito a Término ~12% EA
     - **TES (30%):** Títulos de Tesorería Colombia ~10% EA  
     - **FCI (30%):** Fondos de Inversión Colectiva ~8-10% EA
-    
+
     *Rentabilidad estimada promedio: 10% EA para cartera mixta de bajo riesgo*
     """)
-    
+
     # =========================================================================
     # 🆕 v4.8.0: FASE 3 - TRANSFERENCIAS A CASA MATRIZ (TRIMESTRALES)
     # =========================================================================
-    
+
     st.markdown("---")
     st.markdown("### 🌍 Transferencias a Casa Matriz (SPT Global)")
-    
+
     # Indicador del escenario actual
     emoji_escenario = {
         'Conservador': '🟠',
@@ -3892,10 +3915,10 @@ with tab3:
     **Política SPT Global:** La utilidad neta local debe ser del 10% del revenue. 
     Las transferencias se realizan por **trimestre vencido**, permitiendo a la filial 
     local aprovechar inversiones temporales durante el trimestre.
-    
+
     {emoji_escenario[st.session_state.escenario_proyeccion]} **Calculado con escenario: {st.session_state.escenario_proyeccion}**
     """)
-    
+
     # 🆕 v4.8.1: Calcular transferencias CON balance ajustado después de cada transferencia
     # CORRECCIÓN: Las transferencias ahora se DESCUENTAN del balance
     resultado_transferencias = calcular_transferencias_con_balance(
@@ -3903,13 +3926,13 @@ with tab3:
         efectivo_actual,
         meses_a_proyectar=3
     )
-    
+
     df_trimestres = resultado_transferencias['trimestres']
     df_balance_mensual = resultado_transferencias['balance_mensual']
-    
+
     # Mostrar tabla de transferencias CON balance
     st.markdown("#### 📋 Detalle de Transferencias Trimestrales")
-    
+
     # Preparar tabla para display (ahora incluye balance)
     df_trans_display = df_trimestres[[
         'trimestre', 'balance_inicio', 'revenue_total', 'flujo_neto_total', 
@@ -3919,13 +3942,13 @@ with tab3:
         'Trimestre', 'Balance Inicio', 'Revenue Total', 'Flujo Neto Total', 
         'Utilidad Local (10%)', 'Transferencia HQ', 'Balance después Transfer.'
     ]
-    
+
     # Formatear valores
     for col in df_trans_display.columns[1:]:  # Todas excepto 'Trimestre'
         df_trans_display[col] = df_trans_display[col].apply(lambda x: f"${x:,.0f}")
-    
+
     st.dataframe(df_trans_display, use_container_width=True, hide_index=True)
-    
+
     # Alerta sobre balance después de transferencias
     balance_final = resultado_transferencias['balance_final']
     if balance_final < burn_rate * st.session_state.meses_colchon:
@@ -3938,17 +3961,17 @@ with tab3:
         ✅ Después de las transferencias, el balance final (${balance_final:,.0f}) 
         mantiene un margen saludable sobre las necesidades mínimas.
         """)
-    
+
     # Resumen de transferencias
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.metric(
             "Total Transferencias",
             f"${resultado_transferencias['total_transferencias']:,.0f}",
             help="Suma de todas las transferencias trimestrales proyectadas"
         )
-    
+
     with col2:
         revenue_total_periodo = df_trimestres['revenue_total'].sum()
         utilidad_total = df_trimestres['utilidad_local_10pct'].sum()
@@ -3957,7 +3980,7 @@ with tab3:
             f"${utilidad_total:,.0f}",
             help="10% del revenue total que queda en SPT Colombia"
         )
-    
+
     with col3:
         st.metric(
             "Balance Final",
@@ -3965,14 +3988,14 @@ with tab3:
             delta=f"{balance_final - efectivo_actual:+,.0f}",
             help="Balance después de flujos netos y transferencias trimestrales"
         )
-    
+
     # Gráfico de distribución del flujo neto
     st.markdown("#### 📊 Distribución del Flujo Neto")
-    
+
     # Crear datos para gráfico de barras apiladas
     if not df_trimestres.empty:
         fig_transfer = go.Figure()
-        
+
         fig_transfer.add_trace(go.Bar(
             name='Utilidad Local (10%)',
             x=df_trimestres['trimestre'],
@@ -3981,7 +4004,7 @@ with tab3:
             text=df_trimestres['utilidad_local_10pct'].apply(lambda x: f"${x:,.0f}"),
             textposition='inside'
         ))
-        
+
         fig_transfer.add_trace(go.Bar(
             name='Transferencia a HQ',
             x=df_trimestres['trimestre'],
@@ -3990,7 +4013,7 @@ with tab3:
             text=df_trimestres['transferencia_hq'].apply(lambda x: f"${x:,.0f}"),
             textposition='inside'
         ))
-        
+
         fig_transfer.update_layout(
             barmode='stack',
             title=f'Distribución del Flujo Neto: Utilidad Local vs Transferencia HQ (Escenario {st.session_state.escenario_proyeccion})',
@@ -3999,9 +4022,9 @@ with tab3:
             height=400,
             showlegend=True
         )
-        
+
         st.plotly_chart(fig_transfer, use_container_width=True)
-    
+
     st.caption("""
     **Nota:** Las transferencias se realizan trimestre vencido. Esto permite:
     - Maximizar el uso de excedentes en inversiones temporales durante el trimestre
@@ -4009,37 +4032,37 @@ with tab3:
     - Optimizar la rentabilidad de los fondos antes de la transferencia
     """)
 
-# =============================================================================
-# PÁGINA: ANÁLISIS HISTÓRICO
-# =============================================================================
+    # =============================================================================
+    # PÁGINA: ANÁLISIS HISTÓRICO
+    # =============================================================================
 
 
-# =============================================================================
-# TAB 4: ANÁLISIS HISTÓRICO
-# =============================================================================
+    # =============================================================================
+    # TAB 4: ANÁLISIS HISTÓRICO
+    # =============================================================================
 
 with tab4:
 
     st.markdown("## 📈 Análisis Histórico")
-    
+
     df_hist = data['historical']['data']
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.metric("Revenue Promedio", f"${data['historical']['revenue_promedio']:,.0f}")
     with col2:
         st.metric("Revenue Máximo", f"${data['historical']['revenue_maximo']:,.0f}")
     with col3:
         st.metric("Revenue Mínimo", f"${data['historical']['revenue_minimo']:,.0f}")
-    
+
     st.markdown("---")
-    
+
     # Gráfico histórico
     st.markdown("### 📊 Evolución del Revenue (33 meses)")
-    
+
     fig = go.Figure()
-    
+
     fig.add_trace(go.Scatter(
         x=df_hist['periodo'],
         y=df_hist['revenue'],
@@ -4048,10 +4071,10 @@ with tab4:
         line=dict(color='#2563EB', width=2),
         marker=dict(size=6)
     ))
-    
+
     # Línea de tendencia
     slope, intercept, trend_line = calcular_tendencia_lineal(df_hist['revenue'].values)
-    
+
     fig.add_trace(go.Scatter(
         x=df_hist['periodo'],
         y=trend_line,
@@ -4059,7 +4082,7 @@ with tab4:
         name='Tendencia',
         line=dict(color='red', width=2, dash='dash')
     ))
-    
+
     promedio = df_hist['revenue'].mean()
     fig.add_hline(
         y=promedio,
@@ -4068,7 +4091,7 @@ with tab4:
         annotation_text=f"Promedio: ${promedio:,.0f}",
         annotation_position="right"
     )
-    
+
     fig.update_layout(
         height=500,
         hovermode='x unified',
@@ -4076,9 +4099,9 @@ with tab4:
         yaxis_title='Revenue (USD)',
         yaxis=dict(tickformat='$,.0f')
     )
-    
+
     st.plotly_chart(fig, use_container_width=True)
-    
+
     # Análisis de tendencia
     if slope > 0:
         tendencia_texto = f"📈 **Tendencia POSITIVA:** Crecimiento promedio de ${abs(slope):,.0f}/mes"
@@ -4086,56 +4109,56 @@ with tab4:
     else:
         tendencia_texto = f"📉 **Tendencia NEGATIVA:** Decrecimiento promedio de ${abs(slope):,.0f}/mes"
         tendencia_color = "error"
-    
+
     if tendencia_color == "success":
         st.success(tendencia_texto)
     else:
         st.error(tendencia_texto)
-    
+
     # Tabla de datos
     st.markdown("### 📋 Datos Históricos Detallados")
-    
+
     df_display = df_hist.copy()
     df_display['revenue'] = df_display['revenue'].apply(lambda x: f"${x:,.0f}")
-    
+
     st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-# =============================================================================
-# PÁGINA: PROYECCIONES
-# =============================================================================
+    # =============================================================================
+    # PÁGINA: PROYECCIONES
+    # =============================================================================
 
 
-# =============================================================================
-# TAB 5: PROYECCIONES
-# =============================================================================
+    # =============================================================================
+    # TAB 5: PROYECCIONES
+    # =============================================================================
 
 with tab5:
 
     st.markdown("## 💵 Proyecciones Multi-Escenario")
-    
+
     meses_proyeccion = st.slider("Meses a proyectar:", 3, 12, 6, key="proyeccion_slider")
-    
+
     # 🆕 v4.6.0: Pasar financial_data completo para cálculo dinámico de burn rate
     proyecciones = generar_proyecciones_multi_escenario(
         meses_proyeccion,
         data['historical']['revenue_promedio'],
         data['financial']  # Pasamos todo el dict con gastos_fijos y tasa_costos_variables
     )
-    
+
     # Tabs para cada escenario
     tabs = st.tabs(["📊 Comparación", "🔴 Conservador", "🔵 Moderado", "🟢 Optimista"])
-    
+
     with tabs[0]:
         st.markdown("### 📊 Comparación de Escenarios")
-        
+
         fig = go.Figure()
-        
+
         colores = {
             'Conservador': '#EF4444',
             'Moderado': '#2563EB',
             'Optimista': '#10B981'
         }
-        
+
         for escenario, df_proj in proyecciones.items():
             fig.add_trace(go.Scatter(
                 x=[f"Mes {m}" for m in df_proj['mes']],
@@ -4145,10 +4168,10 @@ with tab5:
                 line=dict(color=colores[escenario], width=3),
                 marker=dict(size=8)
             ))
-        
+
         fig.add_hline(y=0, line_dash="dash", line_color="gray",
                      annotation_text="Punto de equilibrio", annotation_position="right")
-        
+
         fig.update_layout(
             height=500,
             hovermode='x unified',
@@ -4157,23 +4180,23 @@ with tab5:
             yaxis=dict(tickformat='$,.0f'),
             legend=dict(orientation="h", yanchor="bottom", y=1.02)
         )
-        
+
         st.plotly_chart(fig, use_container_width=True)
-        
+
         # 🆕 v4.7.1: GRÁFICO COMPARATIVO DE BARRAS - Revenue y Egresos por Escenario
         st.markdown("### 📊 Comparación Revenue vs Egresos por Escenario")
-        
+
         # Preparar datos para gráfico comparativo
         escenarios_list = list(proyecciones.keys())
-        
+
         # Calcular promedios por escenario
         revenue_por_escenario = [proyecciones[esc]['revenue'].mean() for esc in escenarios_list]
         egresos_por_escenario = [proyecciones[esc]['egresos_totales'].mean() for esc in escenarios_list]
         flujo_por_escenario = [proyecciones[esc]['flujo_neto'].mean() for esc in escenarios_list]
-        
+
         # Crear gráfico de barras comparativo
         fig_comp = go.Figure()
-        
+
         fig_comp.add_trace(go.Bar(
             name='Revenue Promedio',
             x=escenarios_list,
@@ -4182,7 +4205,7 @@ with tab5:
             text=[f"${v:,.0f}" for v in revenue_por_escenario],
             textposition='outside'
         ))
-        
+
         fig_comp.add_trace(go.Bar(
             name='Egresos Totales Promedio',
             x=escenarios_list,
@@ -4191,7 +4214,7 @@ with tab5:
             text=[f"${v:,.0f}" for v in egresos_por_escenario],
             textposition='outside'
         ))
-        
+
         fig_comp.add_trace(go.Bar(
             name='Flujo Neto Promedio',
             x=escenarios_list,
@@ -4200,7 +4223,7 @@ with tab5:
             text=[f"${v:,.0f}" for v in flujo_por_escenario],
             textposition='outside'
         ))
-        
+
         fig_comp.update_layout(
             barmode='group',
             height=400,
@@ -4210,12 +4233,12 @@ with tab5:
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             hovermode='x unified'
         )
-        
+
         st.plotly_chart(fig_comp, use_container_width=True)
-        
+
         # 🆕 v4.7.1: TABLA COMPARATIVA DE RESUMEN
         st.markdown("### 📋 Tabla Comparativa de Escenarios")
-        
+
         # Crear DataFrame de resumen
         datos_comparacion = []
         for escenario in escenarios_list:
@@ -4229,10 +4252,10 @@ with tab5:
                 'Flujo Neto Promedio': f"${df_esc['flujo_neto'].mean():,.0f}",
                 'Flujo Neto Total': f"${df_esc['flujo_neto'].sum():,.0f}"
             })
-        
+
         df_comparacion = pd.DataFrame(datos_comparacion)
         st.dataframe(df_comparacion, use_container_width=True, hide_index=True)
-        
+
         # 🆕 v4.7.1: BOTÓN DE DESCARGA
         csv = df_comparacion.to_csv(index=False).encode('utf-8')
         st.download_button(
@@ -4241,47 +4264,47 @@ with tab5:
             file_name=f"comparacion_escenarios_{meses_proyeccion}meses.csv",
             mime="text/csv"
         )
-        
+
         st.info(f"""
         💡 **Interpretación (v4.6.0 - Burn Rate Dinámico):**
         - **Conservador (rojo):** Supone 15% menos revenue y crecimiento 1% mensual
         - **Moderado (azul):** Mantiene revenue actual con crecimiento 2% mensual
         - **Optimista (verde):** Supone 15% más revenue y crecimiento 3% mensual
-        
+
         🆕 **Con burn rate DINÁMICO:** El burn rate se ajusta automáticamente según el 
         revenue de cada mes (Gastos Fijos ${data['financial']['gastos_fijos']:,.0f} + 
         {data['financial']['tasa_costos_variables']*100:.1f}% del revenue). Esto permite 
         proyecciones más precisas que reflejan la estructura real de costos de la operación.
         """)
-    
+
     for idx, (escenario, df_proj) in enumerate(proyecciones.items(), 1):
         with tabs[idx]:
             st.markdown(f"### {escenario}")
-            
+
             col1, col2, col3 = st.columns(3)
-            
+
             revenue_prom = df_proj['revenue'].mean()
             flujo_prom = df_proj['flujo_neto'].mean()
             revenue_final = df_proj.iloc[-1]['revenue']
-            
+
             with col1:
                 st.metric("Revenue Promedio", f"${revenue_prom:,.0f}")
             with col2:
                 st.metric("Flujo Neto Promedio", f"${flujo_prom:,.0f}")
             with col3:
                 st.metric("Revenue Final", f"${revenue_final:,.0f}")
-            
+
             st.markdown("#### 📊 Gráfico de Flujos")
-            
+
             fig = go.Figure()
-            
+
             fig.add_trace(go.Bar(
                 x=[f"Mes {m}" for m in df_proj['mes']],
                 y=df_proj['revenue'],
                 name='Revenue',
                 marker_color='lightblue'
             ))
-            
+
             # 🆕 v4.6.0: Actualizado a 'egresos_totales' (burn rate dinámico)
             fig.add_trace(go.Bar(
                 x=[f"Mes {m}" for m in df_proj['mes']],
@@ -4289,7 +4312,7 @@ with tab5:
                 name='Egresos Totales',
                 marker_color='lightcoral'
             ))
-            
+
             fig.add_trace(go.Scatter(
                 x=[f"Mes {m}" for m in df_proj['mes']],
                 y=df_proj['flujo_neto'],
@@ -4298,7 +4321,7 @@ with tab5:
                 line=dict(color='green', width=3),
                 marker=dict(size=10)
             ))
-            
+
             fig.update_layout(
                 height=400,
                 barmode='relative',
@@ -4307,19 +4330,19 @@ with tab5:
                 yaxis_title='USD',
                 yaxis=dict(tickformat='$,.0f')
             )
-            
+
             st.plotly_chart(fig, use_container_width=True)
-            
+
             st.markdown("#### 📋 Tabla Detallada")
-            
+
             df_display = df_proj.copy()
             df_display['revenue'] = df_display['revenue'].apply(lambda x: f"${x:,.0f}")
             # 🆕 v4.6.1: Usar 'egresos_totales' en lugar de 'gastos'
             df_display['egresos_totales'] = df_display['egresos_totales'].apply(lambda x: f"${x:,.0f}")
             df_display['flujo_neto'] = df_display['flujo_neto'].apply(lambda x: f"${x:,.0f}")
-            
+
             st.dataframe(df_display, use_container_width=True, hide_index=True)
-            
+
             # 🆕 v4.7.1: Botón de descarga para cada escenario
             csv_individual = df_display.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -4330,38 +4353,38 @@ with tab5:
                 key=f"download_{escenario}"
             )
 
-# =============================================================================
-# PÁGINA: REPORTES DETALLADOS
-# =============================================================================
+    # =============================================================================
+    # PÁGINA: REPORTES DETALLADOS
+    # =============================================================================
 
 
-# =============================================================================
-# TAB 6: REPORTES DETALLADOS
-# =============================================================================
+    # =============================================================================
+    # TAB 6: REPORTES DETALLADOS
+    # =============================================================================
 
 with tab6:
 
     st.markdown("## 📊 Reportes Detallados")
-    
+
     tabs = st.tabs(["📈 Estacionalidad", "🔥 Burn Rate", "💰 Balance Proyectado"])
-    
+
     with tabs[0]:
         st.markdown("### 📅 Análisis de Estacionalidad")
         st.caption("✨ Interactivo: Compara años vs promedio - ✅ DATOS REALES del backend")
-        
+
         # Nota informativa sobre datos reales
         st.info("""
         🎯 **Factores Estacionales REALES integrados**
-        
+
         Estos factores fueron calculados desde los Utilization Reports 2023-2025:
         • **Julio** es el mes de mayor actividad (+46.5% sobre promedio)
         • **Diciembre** es el mes más bajo (-71.1% bajo promedio)
         • Los datos reflejan la operación real de SPT Colombia en los últimos 33 meses
         """)
-        
+
         st.markdown("#### 🎛️ Controles de Visualización")
         col1, col2, col3, col4 = st.columns(4)
-        
+
         with col1:
             show_promedio = st.checkbox("📊 Promedio Global", value=True, key="show_avg")
         with col2:
@@ -4376,30 +4399,30 @@ with tab6:
                 disabled=True,
                 help="⚠️ Año 2025 incompleto (solo Ene-Sep). Necesita 12 meses para visualización completa."
             )
-        
+
         meses_nombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-        
+
         fig = go.Figure()
-        
+
         # ✅ v5.0.3: Manejar seasonal_factors con nombres o números como keys
         if show_promedio and 'seasonal_factors' in data and data['seasonal_factors']:
             seasonal_data = data['seasonal_factors']
-            
+
             # Detectar formato: nombres de meses (str) o números (int)
             first_key = list(seasonal_data.keys())[0]
-            
+
             if isinstance(first_key, str):
                 # Formato: {'Enero': 0.76, 'Febrero': 0.94, ...}
                 factores_promedio = [seasonal_data.get(m, 1.0) for m in meses_nombres]
             else:
                 # Formato: {1: 0.76, 2: 0.94, ...} - convertir
                 factores_promedio = [seasonal_data.get(i+1, 1.0) for i in range(12)]
-            
+
             # Duplicar primer valor para cerrar el polígono
             factores_cerrado = factores_promedio + [factores_promedio[0]]
             meses_cerrado = meses_nombres + [meses_nombres[0]]
-            
+
             fig.add_trace(go.Scatterpolar(
                 r=factores_cerrado,
                 theta=meses_cerrado,
@@ -4409,11 +4432,11 @@ with tab6:
                 fillcolor='rgba(37, 99, 235, 0.2)',
                 marker=dict(size=8, color='#2563EB')
             ))
-        
+
         if 'seasonal_by_year' in data:
             year_colors = {2023: '#10B981', 2024: '#F59E0B', 2025: '#EF4444'}
             year_shows = {2023: show_2023, 2024: show_2024}
-            
+
             for year, show in year_shows.items():
                 if show and year in data['seasonal_by_year']:
                     factors = data['seasonal_by_year'][year]
@@ -4421,7 +4444,7 @@ with tab6:
                         # Duplicar primer valor para cerrar
                         factors_cerrado = factors + [factors[0]]
                         meses_cerrado = meses_nombres + [meses_nombres[0]]
-                        
+
                         fig.add_trace(go.Scatterpolar(
                             r=factors_cerrado,
                             theta=meses_cerrado,
@@ -4429,7 +4452,7 @@ with tab6:
                             line=dict(color=year_colors[year], width=2, dash='dot'),
                             marker=dict(size=6, color=year_colors[year])
                         ))
-        
+
         fig.update_layout(
             polar=dict(
                 radialaxis=dict(visible=True, range=[0, 1.6], tickformat='.2f'),
@@ -4440,15 +4463,15 @@ with tab6:
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=-0.15)
         )
-        
+
         st.plotly_chart(fig, use_container_width=True)
-        
+
         st.info("""
         ℹ️ **Nota sobre Año 2025:**  
         El año 2025 está incompleto (solo 9 meses: Ene-Sep) y no se puede visualizar en el radar 
         que requiere 12 puntos de datos. Los factores de 2025 están incluidos en el promedio global.
         """)
-        
+
         st.markdown("#### 📋 Factores Estacionales Detallados (REALES)")
         df_seasonal = pd.DataFrame(list(data['seasonal_factors'].items()),
                                    columns=['Mes', 'Factor'])
@@ -4459,35 +4482,35 @@ with tab6:
             lambda x: f"{(x-1)*100:+.1f}%"
         )
         st.dataframe(df_seasonal, use_container_width=True, hide_index=True)
-        
+
         st.success("""
         ✅ **Datos Reales Integrados:**  
         Los factores estacionales mostrados fueron calculados desde 33 meses de datos reales 
         (Ene 2023 - Sep 2025), eliminando completamente los valores hardcodeados anteriores.
         """)
-    
+
     with tabs[1]:
         st.markdown("### 🔥 Análisis de Burn Rate")
-        
+
         st.success(f"""
         🎯 **Metodología de Burn Rate DINÁMICO (v4.6.0):**
-        
+
         El burn rate se calcula dinámicamente según el revenue mensual:
-        
+
         **Fórmula:** Burn Rate = Gastos Fijos + (Revenue × Tasa Costos Variables)
-        
+
         **Componentes:**
         • **Gastos Fijos:** ${data['financial']['gastos_fijos']:,.0f} USD/mes (no varían con revenue)
           - Incluye: Admin, HR, Marketing, Salarios, Seguros, Impuestos
         • **Costos Variables:** {data['financial']['tasa_costos_variables']*100:.2f}% del revenue mensual
           - Incluye: Logística, Equipamiento (proporcional al nivel de operación)
-        
+
         **Burn Rate con revenue promedio (${data['historical']['revenue_promedio']:,.0f}):**  
         ${data['financial']['burn_rate']:,.0f} USD/mes
-        
+
         **Margen Operativo:** {data['financial']['margen_operativo']*100:.1f}%
         """)
-        
+
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Burn Rate Mensual", f"${data['financial']['burn_rate']:,.0f}",
@@ -4498,9 +4521,9 @@ with tab6:
         with col3:
             st.metric("Costos Operativos", f"${data['financial']['costos_variables']:,.0f}",
                      help="Costos variables de operación mensuales")
-        
+
         st.markdown("#### 📊 Desglose Estimado del Burn Rate")
-        
+
         # Desglose proporcional basado en los datos reales del informe
         burn_breakdown = pd.DataFrame({
             'Categoría': ['Administrativos', 'Logística', 'Equipamiento', 'Personal', 'Depreciación', 'Marketing'],
@@ -4513,52 +4536,52 @@ with tab6:
                 data['financial']['gastos_fijos'] * 0.30       # ~30% marketing
             ]
         })
-        
+
         fig = px.pie(burn_breakdown, values='Monto', names='Categoría',
                      title='Distribución del Burn Rate',
                      color_discrete_sequence=px.colors.sequential.Blues_r)
         fig.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig, use_container_width=True)
-        
+
         revenue_prom = data['historical']['revenue_promedio']
         burn_rate_calc = data['financial']['burn_rate']
         flujo_neto = revenue_prom - burn_rate_calc
         margen = (flujo_neto / revenue_prom) * 100
-        
+
         st.info(f"""
         💡 **Insight Financiero (v4.6.0):** 
         Con revenue promedio de **${revenue_prom:,.0f}**/mes y burn rate dinámico de 
         **${burn_rate_calc:,.0f}**/mes, la empresa genera un flujo neto de 
         **${flujo_neto:,.0f}**/mes (margen {margen:.1f}%).
-        
+
         Esto indica una operación saludable con capacidad de:
         • Cubrir {(efectivo_actual / burn_rate_calc):.1f} meses de operación con efectivo actual
         • Generar excedentes consistentes para inversión o distribución
         • Mantener margen de protección adecuado configurado en {st.session_state.meses_colchon} meses
         """)
-    
+
     with tabs[2]:
         st.markdown("### 💰 Balance Proyectado Multi-Escenario")
         st.caption("✅ Balance acumulado correctamente con burn rate REAL")
-        
+
         meses_balance = st.slider("Meses de proyección:", 1, 12, 6, key="balance_slider")
-        
+
         proyecciones_bal = generar_proyecciones_multi_escenario(
             meses_balance,
             data['historical']['revenue_promedio'],
             data['financial']  # 🆕 v4.6.1: Pasar dict completo, no solo burn_rate
         )
-        
+
         balances = generar_balance_multi_escenario(meses_balance, efectivo_actual, proyecciones_bal)
-        
+
         fig = go.Figure()
-        
+
         colores = {
             'Conservador': '#EF4444',
             'Moderado': '#2563EB',
             'Optimista': '#10B981'
         }
-        
+
         for escenario, df_balance in balances.items():
             fig.add_trace(go.Scatter(
                 x=[f"Mes {m}" for m in df_balance['mes']],
@@ -4568,14 +4591,14 @@ with tab6:
                 line=dict(color=colores[escenario], width=3),
                 marker=dict(size=10)
             ))
-        
+
         fig.add_hline(y=0, line_dash="dash", line_color="red", line_width=2,
                      annotation_text="⚠️ Punto Crítico", annotation_position="right")
-        
+
         fig.add_hline(y=efectivo_actual, line_dash="dot", line_color="gray",
                      annotation_text=f"Efectivo Inicial: ${efectivo_actual:,.0f}",
                      annotation_position="left")
-        
+
         fig.update_layout(
             height=500,
             hovermode='x unified',
@@ -4585,26 +4608,26 @@ with tab6:
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             title='Evolución del Efectivo por Escenario (con Burn Rate REAL)'
         )
-        
+
         st.plotly_chart(fig, use_container_width=True)
-        
+
         st.markdown("### ⏱️ Análisis de Runway por Escenario")
-        
+
         cols = st.columns(3)
-        
+
         for idx, (escenario, df_balance) in enumerate(balances.items()):
             with cols[idx]:
                 efectivo_final = df_balance.iloc[-1]['efectivo_final']
-                
+
                 if efectivo_final > 0:
                     runway_esc = efectivo_final / data['financial']['burn_rate']
                     st.success(f"""
                     **{escenario}**
-                    
+
                     Efectivo final: ${efectivo_final:,.0f}
-                    
+
                     Runway adicional: {runway_esc:.1f} meses
-                    
+
                     ✅ Posición MUY saludable
                     """)
                 else:
@@ -4613,43 +4636,43 @@ with tab6:
                         mes_critico = meses_negativos.iloc[0]['mes']
                         st.error(f"""
                         **{escenario}**
-                        
+
                         ⚠️ Déficit en mes {int(mes_critico)}
-                        
+
                         Efectivo final: ${efectivo_final:,.0f}
                         """)
-        
+
         st.success(f"""
         🎯 **Conclusión con Burn Rate Dinámico (v4.6.0):**
-        
+
         Con la metodología de burn rate DINÁMICO (Gastos Fijos ${data['financial']['gastos_fijos']:,.0f} + 
         {data['financial']['tasa_costos_variables']*100:.1f}% del revenue), SPT Colombia muestra proyecciones 
         realistas que se ajustan al nivel de operación.
-        
+
         **Con revenue promedio actual (${data['historical']['revenue_promedio']:,.0f}):**
         • Burn rate: ${data['financial']['burn_rate']:,.0f} USD/mes
         • Margen operativo: {data['financial']['margen_operativo']*100:.1f}%  
         • Flujo neto mensual: ${(data['historical']['revenue_promedio'] - data['financial']['burn_rate']):,.0f} USD
-        
+
         Los 3 escenarios proyectan situaciones diferentes según crecimiento del revenue, 
         con burn rate ajustándose proporcionalmente en cada caso.
         """)
 
-# =============================================================================
-# PÁGINA: INGRESO MANUAL
-# =============================================================================
+    # =============================================================================
+    # PÁGINA: INGRESO MANUAL
+    # =============================================================================
 
 
-# =============================================================================
-# FOOTER
-# =============================================================================
+    # =============================================================================
+    # FOOTER
+    # =============================================================================
 
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #64748B; padding: 2rem 0;'>
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #64748B; padding: 2rem 0;'>
     <p><strong>SPT Master Forecast v6.0.0 - COMPLETO</strong></p>
     <p>✅ Fase A: Branding institucional • Fase B: Sidebar persistente • Fase C: Navegación por pestañas</p>
     <p>Desarrollado por <a href='https://www.ai-mindnovation.com' target='_blank'>AI-MindNovation</a></p>
     <p>© 2025 AI-MindNovation. Todos los derechos reservados.</p>
-</div>
-""", unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
