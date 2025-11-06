@@ -1179,6 +1179,11 @@ def procesar_archivos_reales(files_dict):
             'revenue': df_revenue_mensual['Accrual Revenue']
         })
         
+        # 🆕 v6.0.6: Obtener el último mes histórico para proyecciones correctas
+        ultimo_mes_historico = int(df_revenue_mensual['Month'].iloc[-1])
+        ultimo_anio_historico = int(df_revenue_mensual['Year'].iloc[-1])
+        print(f"   📅 Último mes histórico: {ultimo_anio_historico}-{ultimo_mes_historico:02d}")
+        
         # Calcular métricas de revenue
         revenue_promedio = df_historical['revenue'].mean()
         revenue_minimo = df_historical['revenue'].min()
@@ -1228,7 +1233,9 @@ def procesar_archivos_reales(files_dict):
                 'data': df_historical,  # ✅ Cambio: 'data' en lugar de 'df_historical'
                 'top_clients': util_data['top_clientes'],
                 'revenue_anual': util_data['revenue_anual'],
-                'years_data': {}  # Se puede agregar más detalle si se necesita
+                'years_data': {},  # Se puede agregar más detalle si se necesita
+                'ultimo_mes': ultimo_mes_historico,  # 🆕 v6.0.6: Para proyecciones correctas
+                'ultimo_anio': ultimo_anio_historico  # 🆕 v6.0.6: Para referencia
             },
             'financial': {
                 'gastos_fijos': gastos_fijos,  # ✅ v5.0.4: Calculado correctamente
@@ -2312,11 +2319,12 @@ def calcular_revenue_adicional_escenarios():
     }
 
 
-def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, escenario, seasonal_factors=None):
+def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, escenario, seasonal_factors=None, ultimo_mes_historico=None):
     """
     ✅ v5.0.2: Genera proyecciones según NUEVAS FÓRMULAS de escenarios
     ✅ v5.0.3: Protección cuando todos los valores son 0
     ✅ v6.0.1: NUEVA FUNCIONALIDAD - Estacionalidad integrada en proyecciones
+    🆕 v6.0.6: CORRECCIÓN CRÍTICA - Usar último mes histórico real para proyecciones
     
     Args:
         revenue_base: Revenue mensual base (solo equipos operando)
@@ -2324,9 +2332,10 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         meses: Número de meses a proyectar
         escenario: 'Conservador', 'Moderado' o 'Optimista'
         seasonal_factors: Dict opcional con factores estacionales por mes (ej: {'Enero': 0.76, 'Julio': 1.465})
+        ultimo_mes_historico: Int opcional con el último mes histórico (1-12). Si no se proporciona, usa mes actual del sistema
     
     Returns:
-        DataFrame con columnas: ['mes', 'revenue', 'egresos_totales', 'flujo_neto']
+        DataFrame con columnas: ['mes', 'revenue', 'egresos_totales', 'flujo_neto', 'nombre_mes']
     
     NUEVOS ESCENARIOS v5.0.2:
     - Conservador: Solo equipos operando + estacionalidad
@@ -2337,6 +2346,12 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
     Si se proporciona seasonal_factors, las proyecciones aplicarán el patrón estacional
     histórico a cada mes proyectado. Esto hace las proyecciones mucho más realistas
     al considerar los ciclos naturales del negocio (ej: pico en Julio, baja en Diciembre).
+    
+    🆕 v6.0.6 - CORRECCIÓN CRÍTICA:
+    Ahora usa el último mes del histórico para calcular los meses proyectados correctamente.
+    Ejemplo: Si histórico termina en Septiembre (mes 9), proyecciones serán Oct, Nov, Dic...
+    Antes usaba datetime.now().month (Noviembre) lo que causaba que las proyecciones
+    no reflejaran la estacionalidad correcta.
     """
     
     gastos_fijos = financial_data.get('gastos_fijos', 0)
@@ -2382,14 +2397,23 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
     # 🆕 v6.0.1: Preparar nombres de meses para aplicación de estacionalidad
     meses_nombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    meses_abrev = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
     
     proyecciones = []
     
     for i in range(meses):
-        # 🆕 v6.0.1: Calcular mes proyectado para aplicar estacionalidad
-        mes_actual = datetime.now().month
-        mes_proyectado = ((mes_actual + i - 1) % 12) + 1
+        # 🆕 v6.0.6: CORRECCIÓN CRÍTICA - Usar último mes histórico
+        # Si se proporciona ultimo_mes_historico, usarlo; si no, usar mes actual del sistema
+        if ultimo_mes_historico is not None:
+            mes_base = ultimo_mes_historico
+        else:
+            mes_base = datetime.now().month
+        
+        # Calcular mes proyectado (mes siguiente al último histórico + i)
+        mes_proyectado = ((mes_base + i) % 12) + 1
         nombre_mes = meses_nombres[mes_proyectado - 1]
+        nombre_mes_abrev = meses_abrev[mes_proyectado - 1]
         
         # Revenue proyectado con crecimiento (sin estacionalidad aún)
         revenue_base_crecimiento = revenue_base_escenario * (1 + crecimiento)**i
@@ -2411,6 +2435,7 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         
         proyecciones.append({
             'mes': i + 1,
+            'nombre_mes': nombre_mes_abrev,  # 🆕 v6.0.6: Nombre del mes proyectado
             'revenue': revenue_mes,
             'egresos_totales': egresos_totales,
             'flujo_neto': flujo_neto
@@ -3954,12 +3979,14 @@ with tab3:
 
     # ✅ v5.0.3: Usar proyecciones por escenario que incluyen contratos/cotizaciones
     # 🆕 v6.0.1: ESTACIONALIDAD integrada - proyecciones ahora consideran patrones históricos
+    # 🆕 v6.0.6: Pasar último mes histórico para proyecciones correctas
     proyecciones_df = generar_proyecciones_por_escenario(
         revenue_mensual,
         data['financial'],
         meses=3,
         escenario=st.session_state.escenario_proyeccion,
-        seasonal_factors=data['seasonal_factors']  # 🆕 Aplicar estacionalidad
+        seasonal_factors=data['seasonal_factors'],  # 🆕 Aplicar estacionalidad
+        ultimo_mes_historico=data['historical'].get('ultimo_mes')  # 🆕 v6.0.6
     )
     flujos_proyectados = proyecciones_df['flujo_neto'].tolist()
 
@@ -4134,12 +4161,14 @@ with tab3:
     # 🆕 v4.8.1: Generar proyecciones DETERMINISTAS según escenario seleccionado
     # CORRECCIÓN: Elimina np.random para que proyecciones sean consistentes
     # 🆕 v6.0.1: ESTACIONALIDAD integrada - proyecciones consideran patrones históricos
+    # 🆕 v6.0.6: Pasar último mes histórico para proyecciones correctas
     proyecciones_3m = generar_proyecciones_por_escenario(
         revenue_mensual,
         data['financial'],
         meses=3,
         escenario=st.session_state.escenario_proyeccion,
-        seasonal_factors=data['seasonal_factors']  # 🆕 Aplicar estacionalidad
+        seasonal_factors=data['seasonal_factors'],  # 🆕 Aplicar estacionalidad
+        ultimo_mes_historico=data['historical'].get('ultimo_mes')  # 🆕 v6.0.6
     )
 
     # Calcular excedentes invertibles (inversiones VIRTUALES - no afectan balance)
@@ -4461,6 +4490,7 @@ with tab5:
     revenue_mensual = data['historical']['revenue_promedio']
     
     # Generar proyecciones para cada escenario usando la metodología correcta (v5.0.2)
+    # 🆕 v6.0.6: Pasar último mes histórico para proyecciones correctas
     proyecciones = {}
     escenarios = ['Conservador', 'Moderado', 'Optimista']
     
@@ -4470,7 +4500,8 @@ with tab5:
             data['financial'],
             meses=meses_proyeccion,
             escenario=escenario,
-            seasonal_factors=data['seasonal_factors']  # ✅ Estacionalidad aplicada
+            seasonal_factors=data['seasonal_factors'],  # ✅ Estacionalidad aplicada
+            ultimo_mes_historico=data['historical'].get('ultimo_mes')  # 🆕 v6.0.6
         )
 
     # Tabs para cada escenario
@@ -4512,7 +4543,14 @@ with tab5:
             'Optimista': '#10B981'
         }
         
+        # 🆕 v6.0.6: Debug - Mostrar qué meses se están proyectando
+        if len(proyecciones['Conservador']) > 0:
+            primer_mes_proy = proyecciones['Conservador']['nombre_mes'].iloc[0]
+            ultimo_mes_proy = proyecciones['Conservador']['nombre_mes'].iloc[-1]
+            st.info(f"📅 **Proyectando desde {primer_mes_proy} hasta {ultimo_mes_proy}** ({meses_proyeccion} meses)")
+        
         # 🆕 v6.0.5: AGREGAR HISTÓRICO al gráfico
+        ultimo_revenue_historico = None  # Para conectar con proyecciones
         if data['historical']['data'] is not None and len(data['historical']['data']) > 0:
             df_hist = data['historical']['data']
             # Limitar a últimos 12 meses para no saturar el gráfico
@@ -4520,6 +4558,9 @@ with tab5:
             
             # Crear etiquetas de mes históricas
             historico_x = [f"H{i+1}" for i in range(len(df_hist_recent))]
+            
+            # Guardar último valor para conectar con proyecciones
+            ultimo_revenue_historico = df_hist_recent['revenue'].iloc[-1]
             
             fig_revenue.add_trace(go.Scatter(
                 x=historico_x,
@@ -4536,26 +4577,47 @@ with tab5:
 
         # Agregar proyecciones por escenario
         for escenario, df_proj in proyecciones.items():
-            # Crear etiquetas de mes proyectadas
-            proyeccion_x = [f"P{m}" for m in df_proj['mes']]
+            # 🆕 v6.0.6: Usar nombres de mes reales (Oct, Nov, Dic...)
+            proyeccion_x = df_proj['nombre_mes'].tolist()
+            proyeccion_y = df_proj['revenue'].tolist()
             
-            fig_revenue.add_trace(go.Scatter(
-                x=proyeccion_x,
-                y=df_proj['revenue'],
-                mode='lines+markers',
-                name=escenario,
-                line=dict(color=colores[escenario], width=4),
-                marker=dict(size=10, symbol='circle'),
-                hovertemplate='<b>%{fullData.name}</b><br>' +
-                             'Mes: %{x}<br>' +
-                             'Revenue: $%{y:,.0f}<br>' +
-                             '<extra></extra>'
-            ))
+            # 🆕 v6.0.6: CONEXIÓN VISUAL - Agregar punto del último histórico al inicio
+            if ultimo_revenue_historico is not None:
+                # Crear punto de transición entre histórico y proyección
+                x_completo = ['H12 (Sep)'] + proyeccion_x
+                y_completo = [ultimo_revenue_historico] + proyeccion_y
+                
+                fig_revenue.add_trace(go.Scatter(
+                    x=x_completo,
+                    y=y_completo,
+                    mode='lines+markers',
+                    name=escenario,
+                    line=dict(color=colores[escenario], width=4),
+                    marker=dict(size=10, symbol='circle'),
+                    hovertemplate='<b>%{fullData.name}</b><br>' +
+                                 'Mes: %{x}<br>' +
+                                 'Revenue: $%{y:,.0f}<br>' +
+                                 '<extra></extra>'
+                ))
+            else:
+                # Sin histórico, solo proyecciones
+                fig_revenue.add_trace(go.Scatter(
+                    x=proyeccion_x,
+                    y=proyeccion_y,
+                    mode='lines+markers',
+                    name=escenario,
+                    line=dict(color=colores[escenario], width=4),
+                    marker=dict(size=10, symbol='circle'),
+                    hovertemplate='<b>%{fullData.name}</b><br>' +
+                                 'Mes: %{x}<br>' +
+                                 'Revenue: $%{y:,.0f}<br>' +
+                                 '<extra></extra>'
+                ))
 
         fig_revenue.update_layout(
             height=500,
             hovermode='x unified',
-            xaxis_title='Período (H=Histórico, P=Proyección)',
+            xaxis_title='Período (Histórico → Proyección)',
             yaxis_title='Revenue (USD)',
             yaxis=dict(tickformat='$,.0f'),
             legend=dict(orientation="h", yanchor="bottom", y=1.02)
@@ -4579,23 +4641,35 @@ with tab5:
                 st.dataframe(factores_df, use_container_width=True, hide_index=True)
                 
                 st.markdown("""
+                **✨ Mejoras en esta versión (v6.0.6):**
+                - ✅ **Meses Reales:** Ahora ves Oct, Nov, Dic... en lugar de P1, P2, P3
+                - ✅ **Conexión Visual:** Histórico conectado con proyecciones (no hay salto)
+                - ✅ **Cálculo Correcto:** Proyecciones empiezan desde el mes siguiente al último histórico
+                
                 **Altibajos Estacionales Esperados:**
                 - 📈 **PICOS:** Factores > 1.20 (ej: Julio 1.465 = +46.5%)
                 - 📉 **VALLES:** Factores < 0.80 (ej: Diciembre 0.550 = -45%)
                 
                 **Qué deberías ver en el gráfico:**
-                - ✅ **Línea Histórica (gris punteado):** Muestra tus datos reales de los últimos 12 meses
+                - ✅ **Línea Histórica (gris punteado):** Tus datos reales de los últimos 12 meses
+                - ✅ **Punto de Conexión (H12):** Último mes histórico conecta con primer mes proyectado
                 - ✅ **Líneas de Proyección (colores sólidos):** Deben mostrar altibajos si hay variación >50%
                 - ✅ **Diferencia ~200%** entre pico y valle si proyectas 12 meses
                 - ✅ Los 3 escenarios siguen el **mismo patrón** estacional (solo cambia el nivel)
                 
-                **💡 Si no ves altibajos claros:**
-                - Verifica que la **variación** arriba sea >50%
-                - Proyecta **12 meses** para ver el ciclo completo (pico julio, valle diciembre)
-                - Usa **zoom** en el gráfico si la escala es muy grande
-                - Los datos históricos pueden tener poca variación si el negocio es muy estable
+                **💡 Ejemplo de tu caso:**
+                Si H12 = Septiembre, entonces:
+                - Oct (Factor ~1.00): similar al promedio
+                - Nov (Factor ~0.92): ligera baja
+                - **Dic (Factor ~0.55): GRAN CAÍDA esperada** ❄️
+                - **Ene (Factor ~0.76): continúa bajo** 📉
+                - Feb (Factor ~1.03): recuperación
+                - Mar (Factor ~1.21): empieza a subir
+                
+                Si no ves la caída en Diciembre en tus proyecciones, **revisa que tu histórico termine en Septiembre**.
                 """)
-        
+        else:
+            st.warning("⚠️ Sin factores estacionales. Proyecciones serán lineales.")
         st.markdown("---")
         
         # GRÁFICO EXISTENTE DE FLUJO NETO
@@ -5030,6 +5104,7 @@ with tab6:
 
         # 🆕 v6.0.3: CORRECCIÓN CRÍTICA - Usar generar_proyecciones_por_escenario
         # Esto asegura que la estacionalidad se aplique correctamente en el balance
+        # 🆕 v6.0.6: Pasar último mes histórico para proyecciones correctas
         revenue_mensual = data['historical']['revenue_promedio']
         
         proyecciones_bal = {}
@@ -5041,7 +5116,8 @@ with tab6:
                 data['financial'],
                 meses=meses_balance,
                 escenario=escenario,
-                seasonal_factors=data['seasonal_factors']  # ✅ Estacionalidad aplicada
+                seasonal_factors=data['seasonal_factors'],  # ✅ Estacionalidad aplicada
+                ultimo_mes_historico=data['historical'].get('ultimo_mes')  # 🆕 v6.0.6
             )
 
         balances = generar_balance_multi_escenario(meses_balance, efectivo_actual, proyecciones_bal)
