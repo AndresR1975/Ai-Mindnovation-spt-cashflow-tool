@@ -1,7 +1,39 @@
 """
-SPT MASTER FORECAST - Dashboard Streamlit v6.0.2
+SPT MASTER FORECAST - Dashboard Streamlit v6.0.3
 =================================================
 Sistema de pronóstico y análisis financiero para SPT Colombia
+
+🚀 VERSIÓN 6.0.3 - CORRECCIÓN CRÍTICA DE ESTACIONALIDAD (Noviembre 6, 2025):
+==============================================================================
+
+🔧 CORRECCIÓN CRÍTICA - ESTACIONALIDAD EN GRÁFICOS DE PROYECCIONES:
+===================================================================
+
+  ✨ PROBLEMA RESUELTO (v6.0.3):
+  
+     1. 🐛 PROBLEMA IDENTIFICADO:
+        - Los gráficos en "Proyecciones Multi-Escenario" se veían LINEALES
+        - Usaban función antigua generar_proyecciones_multi_escenario() (v4.6.0)
+        - Metodología diferente a Resumen Ejecutivo y Excedentes
+        - Estacionalidad NO se aplicaba correctamente en visualizaciones
+     
+     2. ✅ SOLUCIÓN IMPLEMENTADA:
+        - Reemplazadas TODAS las llamadas a generar_proyecciones_multi_escenario()
+        - Ahora usa generar_proyecciones_por_escenario() para cada escenario
+        - Metodología unificada en TODO el dashboard (v5.0.2)
+        - Estacionalidad se aplica CORRECTAMENTE en todos los gráficos
+     
+     3. 📊 GRÁFICOS CORREGIDOS:
+        - Revenue Proyectado por Escenario → Ahora con altibajos estacionales ✅
+        - Flujo Neto por Escenario → Ahora con variación estacional ✅
+        - Evolución del Efectivo → Ahora refleja patrones estacionales ✅
+        - Balance Proyectado Multi-Escenario → Con estacionalidad correcta ✅
+     
+     4. 🎯 IMPACTO:
+        - Gráficos muestran patrones NO lineales (altibajos)
+        - Proyecciones más realistas y precisas
+        - Consistencia metodológica en todo el dashboard
+        - Mismo comportamiento en todas las pestañas
 
 🚀 VERSIÓN 6.0.2 - VISUALIZACIÓN MEJORADA DE ESTACIONALIDAD (Noviembre 6, 2025):
 ==================================================================================
@@ -90,7 +122,7 @@ Sistema de pronóstico y análisis financiero para SPT Colombia
         - Aplicado en título principal, KPIs y elementos destacados
      
      3. 📋 INFORMACIÓN ACTUALIZADA:
-        - Versión actualizada a 6.0.2
+        - Versión actualizada a 6.0.3
         - Créditos: "Desarrollado por AI-MindNovation"
         - Logo SPT visible en sidebar
      
@@ -2877,11 +2909,16 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 6.0.2 - Visualización Mejorada
+    **Versión:** 6.0.3 - Corrección Crítica
     
     ---
     
-    **🆕 VERSIÓN 6.0.2 (Nov 6, 2025):**
+    **🔧 VERSIÓN 6.0.3 (Nov 6, 2025):**
+    • ✅ Corrección: Gráficos con estacionalidad
+    • ✅ Metodología unificada (v5.0.2)
+    • ✅ Proyecciones NO lineales ✓
+    
+    **📊 VERSIÓN 6.0.2 (Nov 6, 2025):**
     • ✅ Gráfico de Revenue por Escenario
     • ✅ Visualización clara de estacionalidad
     • ✅ Hover mejorado en gráficos
@@ -4317,14 +4354,24 @@ with tab5:
 
     meses_proyeccion = st.slider("Meses a proyectar:", 3, 12, 6, key="proyeccion_slider")
 
-    # 🆕 v4.6.0: Pasar financial_data completo para cálculo dinámico de burn rate
-    # 🆕 v6.0.1: ESTACIONALIDAD integrada - proyecciones consideran patrones históricos
-    proyecciones = generar_proyecciones_multi_escenario(
-        meses_proyeccion,
-        data['historical']['revenue_promedio'],
-        data['financial'],  # Pasamos todo el dict con gastos_fijos y tasa_costos_variables
-        seasonal_factors=data['seasonal_factors']  # 🆕 Aplicar estacionalidad
-    )
+    # 🆕 v6.0.3: CORRECCIÓN CRÍTICA - Usar generar_proyecciones_por_escenario para TODOS los escenarios
+    # Esto asegura que la estacionalidad se aplique correctamente en los gráficos
+    # Anteriormente usaba generar_proyecciones_multi_escenario que tenía metodología antigua (v4.6.0)
+    
+    revenue_mensual = data['historical']['revenue_promedio']
+    
+    # Generar proyecciones para cada escenario usando la metodología correcta (v5.0.2)
+    proyecciones = {}
+    escenarios = ['Conservador', 'Moderado', 'Optimista']
+    
+    for escenario in escenarios:
+        proyecciones[escenario] = generar_proyecciones_por_escenario(
+            revenue_mensual,
+            data['financial'],
+            meses=meses_proyeccion,
+            escenario=escenario,
+            seasonal_factors=data['seasonal_factors']  # ✅ Estacionalidad aplicada
+        )
 
     # Tabs para cada escenario
     tabs = st.tabs(["📊 Comparación", "🔴 Conservador", "🔵 Moderado", "🟢 Optimista"])
@@ -4810,12 +4857,21 @@ with tab6:
 
         meses_balance = st.slider("Meses de proyección:", 1, 12, 6, key="balance_slider")
 
-        proyecciones_bal = generar_proyecciones_multi_escenario(
-            meses_balance,
-            data['historical']['revenue_promedio'],
-            data['financial'],  # 🆕 v4.6.1: Pasar dict completo, no solo burn_rate
-            seasonal_factors=data['seasonal_factors']  # 🆕 v6.0.1: Aplicar estacionalidad
-        )
+        # 🆕 v6.0.3: CORRECCIÓN CRÍTICA - Usar generar_proyecciones_por_escenario
+        # Esto asegura que la estacionalidad se aplique correctamente en el balance
+        revenue_mensual = data['historical']['revenue_promedio']
+        
+        proyecciones_bal = {}
+        escenarios = ['Conservador', 'Moderado', 'Optimista']
+        
+        for escenario in escenarios:
+            proyecciones_bal[escenario] = generar_proyecciones_por_escenario(
+                revenue_mensual,
+                data['financial'],
+                meses=meses_balance,
+                escenario=escenario,
+                seasonal_factors=data['seasonal_factors']  # ✅ Estacionalidad aplicada
+            )
 
         balances = generar_balance_multi_escenario(meses_balance, efectivo_actual, proyecciones_bal)
 
