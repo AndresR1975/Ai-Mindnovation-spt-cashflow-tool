@@ -1425,33 +1425,71 @@ st.markdown("""
     }
 
     
-    /* 🆕 v6.0.0 FASE C: Pestañas fijas en la parte superior */
+    /* 🆕 v6.0.0 FASE C: Pestañas fijas en la parte superior (mejorado) */
     .stTabs [data-baseweb="tab-list"] {
-        position: sticky;
-        top: 0;
-        background-color: white;
-        z-index: 999;
-        padding: 1rem 0 0.5rem 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 1rem;
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 3.5rem !important;
+        background-color: white !important;
+        z-index: 999 !important;
+        padding: 1rem 0 0.5rem 0 !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
+        margin-bottom: 1rem !important;
+        border-bottom: 2px solid #f0f2f6 !important;
     }
     
     .stTabs [data-baseweb="tab"] {
-        padding: 0.5rem 1.5rem;
-        font-weight: 500;
-        font-size: 1rem;
+        padding: 0.5rem 1.5rem !important;
+        font-weight: 500 !important;
+        font-size: 1rem !important;
+        border-radius: 8px 8px 0 0 !important;
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: #F8F9FA;
-        transition: background-color 0.2s ease;
+        background-color: #F8F9FA !important;
+        transition: background-color 0.2s ease !important;
     }
     
     /* Asegurar que el contenido tenga espacio debajo de las tabs */
     .stTabs [data-baseweb="tab-panel"] {
-        padding-top: 1rem;
+        padding-top: 1.5rem !important;
+    }
+    
+    /* Forzar el comportamiento sticky en todos los navegadores */
+    div[data-baseweb="tab-list"] {
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 3.5rem !important;
     }
 
+
+
+    /* JavaScript para forzar pestañas sticky si CSS no funciona */
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Función para hacer sticky las tabs
+        function makeTabsSticky() {
+            const tabLists = document.querySelectorAll('[data-baseweb="tab-list"]');
+            tabLists.forEach(function(tabList) {
+                tabList.style.position = 'sticky';
+                tabList.style.top = '3.5rem';
+                tabList.style.backgroundColor = 'white';
+                tabList.style.zIndex = '999';
+                tabList.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+                tabList.style.paddingTop = '1rem';
+                tabList.style.paddingBottom = '0.5rem';
+            });
+        }
+        
+        // Ejecutar al cargar
+        makeTabsSticky();
+        
+        // Ejecutar después de cualquier actualización de Streamlit
+        setTimeout(makeTabsSticky, 500);
+        setTimeout(makeTabsSticky, 1000);
+        setTimeout(makeTabsSticky, 2000);
+    });
+    </script>
 </style>
 """, unsafe_allow_html=True)
 
@@ -3793,7 +3831,7 @@ with tab3:
     )
 
     fig.update_layout(height=400, showlegend=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="chart_analisis_clientes")
 
     # Balance al final de 3 meses
     balance_3m = analisis_cash['balance_proyectado']
@@ -4037,7 +4075,7 @@ with tab3:
             showlegend=True
         )
 
-        st.plotly_chart(fig_transfer, use_container_width=True)
+        st.plotly_chart(fig_transfer, use_container_width=True, key="chart_transferencias_matriz")
 
     st.caption("""
     **Nota:** Las transferencias se realizan trimestre vencido. Esto permite:
@@ -4114,7 +4152,7 @@ with tab4:
         yaxis=dict(tickformat='$,.0f')
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="chart_tendencia_historica")
 
     # Análisis de tendencia
     if slope > 0:
@@ -4195,7 +4233,7 @@ with tab5:
             legend=dict(orientation="h", yanchor="bottom", y=1.02)
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_radar_estacional_tab")
 
         # 🆕 v4.7.1: GRÁFICO COMPARATIVO DE BARRAS - Revenue y Egresos por Escenario
         st.markdown("### 📊 Comparación Revenue vs Egresos por Escenario")
@@ -4248,7 +4286,7 @@ with tab5:
             hovermode='x unified'
         )
 
-        st.plotly_chart(fig_comp, use_container_width=True)
+        st.plotly_chart(fig_comp, use_container_width=True, key="chart_comparacion_escenarios")
 
         # 🆕 v4.7.1: TABLA COMPARATIVA DE RESUMEN
         st.markdown("### 📋 Tabla Comparativa de Escenarios")
@@ -4345,7 +4383,7 @@ with tab5:
                 yaxis=dict(tickformat='$,.0f')
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="chart_runway_multi_escenario")
 
             st.markdown("#### 📋 Tabla Detallada")
 
@@ -4478,7 +4516,7 @@ with tab6:
             legend=dict(orientation="h", yanchor="bottom", y=-0.15)
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_radar_estacional")
 
         st.info("""
         ℹ️ **Nota sobre Año 2025:**  
@@ -4555,7 +4593,7 @@ with tab6:
                      title='Distribución del Burn Rate',
                      color_discrete_sequence=px.colors.sequential.Blues_r)
         fig.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_analisis_equipos")
 
         revenue_prom = data['historical']['revenue_promedio']
         burn_rate_calc = data['financial']['burn_rate']
@@ -4623,7 +4661,7 @@ with tab6:
             title='Evolución del Efectivo por Escenario (con Burn Rate REAL)'
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_balance_proyectado_12m")
 
         st.markdown("### ⏱️ Análisis de Runway por Escenario")
 
