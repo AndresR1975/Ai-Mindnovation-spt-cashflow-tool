@@ -3831,7 +3831,7 @@ with tab3:
     )
 
     fig.update_layout(height=400, showlegend=False)
-    st.plotly_chart(fig, use_container_width=True, key="chart_analisis_clientes")
+    st.plotly_chart(fig, use_container_width=True)
 
     # Balance al final de 3 meses
     balance_3m = analisis_cash['balance_proyectado']
@@ -4075,7 +4075,7 @@ with tab3:
             showlegend=True
         )
 
-        st.plotly_chart(fig_transfer, use_container_width=True, key="chart_transferencias_matriz")
+        st.plotly_chart(fig_transfer, use_container_width=True)
 
     st.caption("""
     **Nota:** Las transferencias se realizan trimestre vencido. Esto permite:
@@ -4152,7 +4152,7 @@ with tab4:
         yaxis=dict(tickformat='$,.0f')
     )
 
-    st.plotly_chart(fig, use_container_width=True, key="chart_tendencia_historica")
+    st.plotly_chart(fig, use_container_width=True)
 
     # Análisis de tendencia
     if slope > 0:
@@ -4233,7 +4233,7 @@ with tab5:
             legend=dict(orientation="h", yanchor="bottom", y=1.02)
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="chart_radar_estacional_tab")
+        st.plotly_chart(fig, use_container_width=True)
 
         # 🆕 v4.7.1: GRÁFICO COMPARATIVO DE BARRAS - Revenue y Egresos por Escenario
         st.markdown("### 📊 Comparación Revenue vs Egresos por Escenario")
@@ -4286,7 +4286,7 @@ with tab5:
             hovermode='x unified'
         )
 
-        st.plotly_chart(fig_comp, use_container_width=True, key="chart_comparacion_escenarios")
+        st.plotly_chart(fig_comp, use_container_width=True)
 
         # 🆕 v4.7.1: TABLA COMPARATIVA DE RESUMEN
         st.markdown("### 📋 Tabla Comparativa de Escenarios")
@@ -4383,7 +4383,7 @@ with tab5:
                 yaxis=dict(tickformat='$,.0f')
             )
 
-            st.plotly_chart(fig, use_container_width=True, key="chart_runway_multi_escenario")
+            st.plotly_chart(fig, use_container_width=True)
 
             st.markdown("#### 📋 Tabla Detallada")
 
@@ -4516,7 +4516,7 @@ with tab6:
             legend=dict(orientation="h", yanchor="bottom", y=-0.15)
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="chart_radar_estacional")
+        st.plotly_chart(fig, use_container_width=True)
 
         st.info("""
         ℹ️ **Nota sobre Año 2025:**  
@@ -4593,7 +4593,7 @@ with tab6:
                      title='Distribución del Burn Rate',
                      color_discrete_sequence=px.colors.sequential.Blues_r)
         fig.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig, use_container_width=True, key="chart_analisis_equipos")
+        st.plotly_chart(fig, use_container_width=True)
 
         revenue_prom = data['historical']['revenue_promedio']
         burn_rate_calc = data['financial']['burn_rate']
@@ -4661,7 +4661,7 @@ with tab6:
             title='Evolución del Efectivo por Escenario (con Burn Rate REAL)'
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="chart_balance_proyectado_12m")
+        st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("### ⏱️ Análisis de Runway por Escenario")
 
