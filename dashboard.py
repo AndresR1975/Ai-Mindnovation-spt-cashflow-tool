@@ -1307,26 +1307,7 @@ def check_password():
         <p style='color: #64748B; font-size: 1.2rem;'>Sistema de Pronóstico y Análisis Financiero</p>
         <p style='color: #64748B;'>Ingrese la contraseña para acceder</p>
     </div>
-    
-    
-    /* 🆕 v6.0.0 FASE C: Pestañas fijas (sticky) */
-    .stTabs [data-baseweb="tab-list"] {
-        position: sticky;
-        top: 0;
-        background-color: white;
-        z-index: 999;
-        padding: 1rem 0 0.5rem 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        padding: 0.5rem 1.5rem;
-        font-weight: 500;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: #F8F9FA;
-    }""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -1442,6 +1423,35 @@ st.markdown("""
         background-color: var(--spt-burgundy-dark);
         border-color: var(--spt-burgundy-dark);
     }
+
+    
+    /* 🆕 v6.0.0 FASE C: Pestañas fijas en la parte superior */
+    .stTabs [data-baseweb="tab-list"] {
+        position: sticky;
+        top: 0;
+        background-color: white;
+        z-index: 999;
+        padding: 1rem 0 0.5rem 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.5rem 1.5rem;
+        font-weight: 500;
+        font-size: 1rem;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #F8F9FA;
+        transition: background-color 0.2s ease;
+    }
+    
+    /* Asegurar que el contenido tenga espacio debajo de las tabs */
+    .stTabs [data-baseweb="tab-panel"] {
+        padding-top: 1rem;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -2614,7 +2624,8 @@ with st.sidebar:
     if st.button("💾 Actualizar Efectivo", use_container_width=True):
         st.session_state.efectivo_disponible = efectivo_input
         st.success(f"✅ Efectivo actualizado: ${efectivo_input:,.0f}")
-        st.rerun()
+        st.info("💡 Los cambios se reflejarán al cambiar de pestaña")
+        # No recargar para preservar file uploaders cargados
     
     efectivo_actual = st.session_state.efectivo_disponible if st.session_state.efectivo_disponible else efectivo_input
     
@@ -2737,7 +2748,10 @@ with st.sidebar:
 data = get_data()
 
 # 🆕 v6.0.0: Definir efectivo_actual antes de las pestañas para que esté disponible en todas
-efectivo_actual = st.session_state.efectivo_disponible if st.session_state.efectivo_disponible else 80000
+# Obtener efectivo actual (se actualiza dinámicamente sin recargar)
+efectivo_actual = st.session_state.get('efectivo_disponible', 80000)
+if efectivo_actual is None:
+    efectivo_actual = 80000
 
 # 🎨 v6.0.0: Título principal con color institucional
 st.markdown('<h1 class="main-title">📊 SPT Master Forecast</h1>', unsafe_allow_html=True)
