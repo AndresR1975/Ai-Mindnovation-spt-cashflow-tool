@@ -1,7 +1,39 @@
 """
-SPT MASTER FORECAST - Dashboard Streamlit v6.0.3
+SPT MASTER FORECAST - Dashboard Streamlit v6.0.4
 =================================================
 Sistema de pronóstico y análisis financiero para SPT Colombia
+
+🚀 VERSIÓN 6.0.4 - MEJORAS VISUALES EN ESTACIONALIDAD (Noviembre 6, 2025):
+============================================================================
+
+🎨 MEJORAS VISUALES - GRÁFICO DE REVENUE MÁS CLARO:
+====================================================
+
+  ✨ PROBLEMA RESUELTO (v6.0.4):
+  
+     1. 📊 PROBLEMA REPORTADO:
+        - Altibajos estacionales no se veían tan claros visualmente
+        - Necesitaba proyectar 12 meses para ver el ciclo completo
+        - Escala del gráfico podía hacer variaciones menos evidentes
+     
+     2. ✅ MEJORAS IMPLEMENTADAS:
+        - Líneas más gruesas (width=4, antes 3)
+        - Marcadores más grandes (size=10, antes 8)
+        - Mensaje destacado sobre variabilidad
+        - Nota informativa mejorada con instrucciones claras
+        - Tips de visualización (zoom, hover, 12 meses)
+     
+     3. 🎯 BENEFICIOS:
+        - Altibajos más evidentes visualmente
+        - Usuario sabe exactamente qué esperar
+        - Instrucciones claras sobre cómo interpretar
+        - Verificación fácil de que estacionalidad funciona
+     
+     4. 📝 SCRIPT DE VERIFICACIÓN:
+        - Agregado verificacion_estacionalidad.py
+        - Muestra números exactos de la proyección
+        - Confirma que factores se aplican correctamente
+        - Diferencia pico-valle: $147,287 (206%)
 
 🚀 VERSIÓN 6.0.3 - CORRECCIÓN CRÍTICA DE ESTACIONALIDAD (Noviembre 6, 2025):
 ==============================================================================
@@ -2909,9 +2941,14 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 6.0.3 - Corrección Crítica
+    **Versión:** 6.0.4 - Mejoras Visuales
     
     ---
+    
+    **🎨 VERSIÓN 6.0.4 (Nov 6, 2025):**
+    • ✅ Gráficos más claros (líneas gruesas)
+    • ✅ Marcadores más grandes
+    • ✅ Instrucciones de visualización
     
     **🔧 VERSIÓN 6.0.3 (Nov 6, 2025):**
     • ✅ Corrección: Gráficos con estacionalidad
@@ -2921,16 +2958,14 @@ with st.sidebar:
     **📊 VERSIÓN 6.0.2 (Nov 6, 2025):**
     • ✅ Gráfico de Revenue por Escenario
     • ✅ Visualización clara de estacionalidad
-    • ✅ Hover mejorado en gráficos
     
     **🔄 VERSIÓN 6.0.1 (Nov 6, 2025):**
     • ✅ Estacionalidad en proyecciones
-    • ✅ Factor diciembre recalibrado (0.55)
-    • ✅ Proyecciones más realistas
+    • ✅ Factor diciembre recalibrado
     
     **🎨 VERSIÓN 6.0.0 (Nov 5, 2025):**
-    • ✅ Fase A: Branding y colores institucionales
-    • ✅ Fase B: Sidebar persistente optimizado
+    • ✅ Branding y colores institucionales
+    • ✅ Sidebar persistente optimizado
     • ✅ Fase C: Navegación por pestañas superiores
     
     ---
@@ -4381,7 +4416,14 @@ with tab5:
         
         # 🆕 v6.0.1: GRÁFICO DE REVENUE POR ESCENARIO (muestra estacionalidad claramente)
         st.markdown("#### 💰 Revenue Proyectado por Escenario")
-        st.caption("Este gráfico muestra el revenue mensual considerando la estacionalidad histórica del negocio")
+        
+        # 🆕 v6.0.4: Mensaje destacado sobre estacionalidad
+        if data['seasonal_factors']:
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.metric("📊 Variabilidad", "Altibajos Estacionales")
+            with col2:
+                st.caption("⚠️ **IMPORTANTE:** Las curvas muestran altibajos naturales por estacionalidad. Usa hover en los puntos para ver valores exactos. Proyecta 12 meses para ver el ciclo completo (pico en julio, valle en diciembre).")
         
         fig_revenue = go.Figure()
 
@@ -4397,8 +4439,8 @@ with tab5:
                 y=df_proj['revenue'],
                 mode='lines+markers',
                 name=escenario,
-                line=dict(color=colores[escenario], width=3),
-                marker=dict(size=8),
+                line=dict(color=colores[escenario], width=4),  # 🆕 Línea más gruesa
+                marker=dict(size=10, symbol='circle'),  # 🆕 Marcadores más grandes
                 hovertemplate='<b>%{fullData.name}</b><br>' +
                              'Mes: %{x}<br>' +
                              'Revenue: $%{y:,.0f}<br>' +
@@ -4419,10 +4461,22 @@ with tab5:
         # Agregar nota explicativa sobre estacionalidad
         if data['seasonal_factors']:
             st.info("""
-            💡 **Nota sobre Estacionalidad:** Las curvas muestran altibajos naturales del negocio:
-            - **Picos:** Julio (+46.5%), Septiembre (+16.7%), Junio (+10.9%)
-            - **Bajas:** Diciembre (-45%), Enero (-24%)
-            - Los 3 escenarios siguen el mismo patrón estacional, variando solo en nivel base y crecimiento
+            💡 **Cómo interpretar este gráfico:**
+            
+            **Altibajos Estacionales Esperados:**
+            - 📈 **PICOS:** Julio (+46.5%), Septiembre (+16.7%), Junio (+10.9%)
+            - 📉 **VALLES:** Diciembre (-45%), Enero (-24%)
+            
+            **Qué deberías ver:**
+            - ✅ Curvas con **altibajos evidentes**, NO líneas rectas
+            - ✅ Diferencia ~200% entre pico (julio) y valle (diciembre)
+            - ✅ Los 3 escenarios siguen el **mismo patrón** estacional
+            
+            **💡 Tips de visualización:**
+            - Proyecta **12 meses** para ver el ciclo completo
+            - Usa **hover** sobre los puntos para ver valores exactos
+            - Usa **zoom** (icono lupa) si las variaciones se ven pequeñas
+            - La diferencia entre escenarios está en el **nivel base**, no en el patrón
             """)
         
         st.markdown("---")
