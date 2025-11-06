@@ -1,7 +1,38 @@
 """
-SPT MASTER FORECAST - Dashboard Streamlit v6.0.1
+SPT MASTER FORECAST - Dashboard Streamlit v6.0.2
 =================================================
 Sistema de pronóstico y análisis financiero para SPT Colombia
+
+🚀 VERSIÓN 6.0.2 - VISUALIZACIÓN MEJORADA DE ESTACIONALIDAD (Noviembre 6, 2025):
+==================================================================================
+
+📈 NUEVA FUNCIONALIDAD - GRÁFICO DE REVENUE POR ESCENARIO:
+==========================================================
+
+  ✨ MEJORAS VISUALES (v6.0.2):
+  
+     1. 📊 NUEVO GRÁFICO DE REVENUE:
+        - Gráfico de líneas de Revenue por Escenario
+        - Muestra claramente el patrón estacional en el revenue
+        - Posicionado ANTES del gráfico de Flujo Neto
+        - Hover mejorado con información detallada
+     
+     2. 📈 ORGANIZACIÓN MEJORADA:
+        - Gráfico 1: Revenue Proyectado por Escenario (NUEVO)
+        - Gráfico 2: Flujo Neto por Escenario (actualizado)
+        - Nota explicativa sobre estacionalidad
+        - Separadores visuales entre secciones
+     
+     3. 🎯 BENEFICIOS:
+        - Ver claramente los altibajos estacionales en revenue
+        - Entender cómo el patrón de revenue impacta el flujo neto
+        - Identificar visualmente meses pico y meses críticos
+        - Mejor comprensión de las proyecciones
+     
+     4. 💡 NOTA INFORMATIVA:
+        - Muestra automáticamente los meses pico y críticos
+        - Explica que los 3 escenarios siguen el mismo patrón estacional
+        - Solo aparece cuando hay datos de estacionalidad disponibles
 
 🚀 VERSIÓN 6.0.1 - PROYECCIONES CON ESTACIONALIDAD (Noviembre 6, 2025):
 ========================================================================
@@ -59,7 +90,7 @@ Sistema de pronóstico y análisis financiero para SPT Colombia
         - Aplicado en título principal, KPIs y elementos destacados
      
      3. 📋 INFORMACIÓN ACTUALIZADA:
-        - Versión actualizada a 6.0.1
+        - Versión actualizada a 6.0.2
         - Créditos: "Desarrollado por AI-MindNovation"
         - Logo SPT visible en sidebar
      
@@ -2846,11 +2877,16 @@ with st.sidebar:
     st.markdown("""
     **Usuario:** Autenticado ✅
     
-    **Versión:** 6.0.1 - Estacionalidad Integrada
+    **Versión:** 6.0.2 - Visualización Mejorada
     
     ---
     
-    **🆕 VERSIÓN 6.0.1 (Nov 6, 2025):**
+    **🆕 VERSIÓN 6.0.2 (Nov 6, 2025):**
+    • ✅ Gráfico de Revenue por Escenario
+    • ✅ Visualización clara de estacionalidad
+    • ✅ Hover mejorado en gráficos
+    
+    **🔄 VERSIÓN 6.0.1 (Nov 6, 2025):**
     • ✅ Estacionalidad en proyecciones
     • ✅ Factor diciembre recalibrado (0.55)
     • ✅ Proyecciones más realistas
@@ -4295,6 +4331,58 @@ with tab5:
 
     with tabs[0]:
         st.markdown("### 📊 Comparación de Escenarios")
+        
+        # 🆕 v6.0.1: GRÁFICO DE REVENUE POR ESCENARIO (muestra estacionalidad claramente)
+        st.markdown("#### 💰 Revenue Proyectado por Escenario")
+        st.caption("Este gráfico muestra el revenue mensual considerando la estacionalidad histórica del negocio")
+        
+        fig_revenue = go.Figure()
+
+        colores = {
+            'Conservador': '#EF4444',
+            'Moderado': '#2563EB',
+            'Optimista': '#10B981'
+        }
+
+        for escenario, df_proj in proyecciones.items():
+            fig_revenue.add_trace(go.Scatter(
+                x=[f"Mes {m}" for m in df_proj['mes']],
+                y=df_proj['revenue'],
+                mode='lines+markers',
+                name=escenario,
+                line=dict(color=colores[escenario], width=3),
+                marker=dict(size=8),
+                hovertemplate='<b>%{fullData.name}</b><br>' +
+                             'Mes: %{x}<br>' +
+                             'Revenue: $%{y:,.0f}<br>' +
+                             '<extra></extra>'
+            ))
+
+        fig_revenue.update_layout(
+            height=450,
+            hovermode='x unified',
+            xaxis_title='Período',
+            yaxis_title='Revenue (USD)',
+            yaxis=dict(tickformat='$,.0f'),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02)
+        )
+
+        st.plotly_chart(fig_revenue, use_container_width=True, key="chart_proyecciones_revenue")
+        
+        # Agregar nota explicativa sobre estacionalidad
+        if data['seasonal_factors']:
+            st.info("""
+            💡 **Nota sobre Estacionalidad:** Las curvas muestran altibajos naturales del negocio:
+            - **Picos:** Julio (+46.5%), Septiembre (+16.7%), Junio (+10.9%)
+            - **Bajas:** Diciembre (-45%), Enero (-24%)
+            - Los 3 escenarios siguen el mismo patrón estacional, variando solo en nivel base y crecimiento
+            """)
+        
+        st.markdown("---")
+        
+        # GRÁFICO EXISTENTE DE FLUJO NETO
+        st.markdown("#### 📈 Flujo Neto por Escenario")
+        st.caption("Resultado neto mensual (Revenue - Egresos Totales)")
 
         fig = go.Figure()
 
@@ -4311,14 +4399,18 @@ with tab5:
                 mode='lines+markers',
                 name=escenario,
                 line=dict(color=colores[escenario], width=3),
-                marker=dict(size=8)
+                marker=dict(size=8),
+                hovertemplate='<b>%{fullData.name}</b><br>' +
+                             'Mes: %{x}<br>' +
+                             'Flujo Neto: $%{y:,.0f}<br>' +
+                             '<extra></extra>'
             ))
 
-        fig.add_hline(y=0, line_dash="dash", line_color="gray",
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", line_width=2,
                      annotation_text="Punto de equilibrio", annotation_position="right")
 
         fig.update_layout(
-            height=500,
+            height=450,
             hovermode='x unified',
             xaxis_title='Período',
             yaxis_title='Flujo Neto (USD)',
@@ -4327,6 +4419,8 @@ with tab5:
         )
 
         st.plotly_chart(fig, use_container_width=True, key="chart_proyecciones_flujos_lineal")
+        
+        st.markdown("---")
 
         # 🆕 v4.7.1: GRÁFICO COMPARATIVO DE BARRAS - Revenue y Egresos por Escenario
         st.markdown("### 📊 Comparación Revenue vs Egresos por Escenario")
