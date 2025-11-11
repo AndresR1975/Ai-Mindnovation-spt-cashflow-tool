@@ -1210,8 +1210,22 @@ def procesar_archivos_reales(files_dict):
         gastos_fijos = financial_data['gastos_fijos']
         tasa_costos_variables = financial_data['tasa_costos_variables']
         
+        # 🆕 v6.2.1: Calcular costos específicos promedio de contratos
+        # Estos costos se suman al burn_rate para cálculo de necesidades mínimas
+        costos_contratos_promedio = 0
+        if st.session_state.get('contratos_manuales'):
+            # Calcular promedio de costos específicos para próximos 3 meses
+            total_costos = 0
+            for i in range(3):  # Promedio de 3 meses
+                mes_proyectado = ((datetime.now().month + i - 1) % 12) + 1
+                ano_proyectado = datetime.now().year + ((datetime.now().month + i - 1) // 12)
+                revenue_mes = calcular_revenue_adicional_por_mes(mes_proyectado, ano_proyectado)
+                total_costos += revenue_mes.get('costos_contratos', 0)
+            costos_contratos_promedio = total_costos / 3
+        
         # Usar revenue_promedio de Utilization Reports (NO del informe financiero)
-        burn_rate = gastos_fijos + (revenue_promedio * tasa_costos_variables)
+        burn_rate_base = gastos_fijos + (revenue_promedio * tasa_costos_variables)
+        burn_rate = burn_rate_base + costos_contratos_promedio  # 🆕 v6.2.1: Incluir costos específicos
         margen_operativo = 1 - (burn_rate / revenue_promedio) if revenue_promedio > 0 else 0
         
         print(f"\n💰 DATOS FINANCIEROS CALCULADOS:")
@@ -1219,6 +1233,7 @@ def procesar_archivos_reales(files_dict):
         print(f"   - Tasa Costos Variables: {tasa_costos_variables*100:.2f}%")
         print(f"   - Revenue Promedio (Utilization): ${revenue_promedio:,.2f}/mes")
         print(f"   - Costos Variables: ${revenue_promedio * tasa_costos_variables:,.2f}/mes")
+        print(f"   - Costos Contratos (promedio 3m): ${costos_contratos_promedio:,.2f}/mes")  # 🆕 v6.2.1
         print(f"   - Burn Rate TOTAL: ${burn_rate:,.2f}/mes")
         print(f"   - Margen Operativo: {margen_operativo*100:.1f}%")
         
@@ -3839,7 +3854,9 @@ with tab2:
                         value=12,
                         help="Duración del contrato en meses"
                     )
-                    fecha_fin_contrato = fecha_inicio_contrato + timedelta(days=duracion_contrato_meses * 30)
+                    # 🔧 v6.2.1: CORRECCIÓN - Usar relativedelta para cálculo correcto de meses
+                    from dateutil.relativedelta import relativedelta
+                    fecha_fin_contrato = fecha_inicio_contrato + relativedelta(months=duracion_contrato_meses)
                 else:
                     duracion_contrato_meses = None
                     st.info("📅 Contrato con fecha fin abierta (notificación con 1 mes de anticipación)")
@@ -4719,7 +4736,7 @@ with tab5:
         revenue_adicional = calcular_revenue_adicional_escenarios()
         
         if revenue_adicional['revenue_contratos'] > 0 or revenue_adicional['revenue_cotizaciones_50pct'] > 0 or revenue_adicional['revenue_equipos_disponibles_50pct'] > 0:
-            with st.expander("🔍 DEBUG: Revenue Adicional Detectado", expanded=True):
+            with st.expander("🔍 DEBUG: Revenue Adicional Detectado", expanded=False):
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.metric(
@@ -4788,6 +4805,47 @@ with tab5:
                         st.success(f"✅ Variación alta ({variacion_pct:.0f}%). Deberías ver altibajos claros.")
         else:
             st.warning("⚠️ Sin factores estacionales. Proyecciones serán lineales.")
+        
+        # 🆕 v6.2.1: DEBUG DE VIGENCIA - Mostrar qué contratos están vigentes en cada mes proyectado
+        if st.session_state.get('contratos_manuales') and len(st.session_state.contratos_manuales) > 0:
+            with st.expander("🔍 DEBUG v6.2.1: Vigencia de Contratos por Mes", expanded=True):
+                st.markdown("**Verificación de vigencia mes por mes:**")
+                
+                # Calcular meses proyectados
+                if data['historical'].get('ultimo_mes') is not None:
+                    mes_base = data['historical']['ultimo_mes']
+                else:
+                    mes_base = datetime.now().month
+                
+                ano_base = datetime.now().year
+                meses_nombres_abrev = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                                       'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+                
+                # Crear tabla de vigencia
+                vigencia_data = []
+                for i in range(min(meses_proyeccion, 12)):  # Limitar a 12 meses para no saturar
+                    mes_proyectado = ((mes_base + i) % 12) + 1
+                    if i > 0 and mes_proyectado <= mes_base:
+                        ano_proyectado = ano_base + 1
+                    else:
+                        ano_proyectado = ano_base
+                    
+                    nombre_mes = meses_nombres_abrev[mes_proyectado - 1]
+                    
+                    # Calcular revenue adicional para este mes
+                    revenue_mes = calcular_revenue_adicional_por_mes(mes_proyectado, ano_proyectado)
+                    
+                    vigencia_data.append({
+                        'Mes': f"{nombre_mes} {ano_proyectado}",
+                        'Contratos': f"${revenue_mes['revenue_contratos']:,.0f}",
+                        'Costos': f"${revenue_mes.get('costos_contratos', 0):,.0f}",
+                        'Cotizaciones': f"${revenue_mes['revenue_cotizaciones_50pct']:,.0f}"
+                    })
+                
+                df_vigencia = pd.DataFrame(vigencia_data)
+                st.dataframe(df_vigencia, use_container_width=True, hide_index=True)
+                
+                st.caption("💡 Si ves que los contratos desaparecen antes de lo esperado, revisa las fechas de inicio/fin en la sección de Contratos.")
         
         fig_revenue = go.Figure()
 
