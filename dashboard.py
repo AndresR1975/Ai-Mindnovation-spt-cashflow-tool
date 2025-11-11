@@ -1,7 +1,49 @@
 """
-SPT MASTER FORECAST - Dashboard Streamlit v6.2.3
+SPT MASTER FORECAST - Dashboard Streamlit v6.2.4
 =================================================
 Sistema de pronóstico y análisis financiero para SPT Colombia
+
+🚀 VERSIÓN 6.2.4 - NUEVOS GRÁFICOS DE FLUJO DE CAJA (Noviembre 11, 2025):
+==========================================================================
+
+🎨 MEJORAS VISUALES IMPLEMENTADAS (v6.2.4):
+===========================================
+
+  ✨ NUEVOS GRÁFICOS DE ANÁLISIS DE FLUJO:
+  
+     1. **Gráfico de Flujo Neto Mensual (Barras Agrupadas):**
+        - Visualiza el flujo neto mes a mes por escenario
+        - Barras agrupadas para comparación directa entre escenarios
+        - Línea de cero claramente marcada para identificar meses críticos
+        - Etiquetas con valores en millones (M) o miles (k) según magnitud
+        - UBICACIÓN: Proyecciones Multi-Escenario > Comparación
+        
+     2. **Gráfico de Efectivo Acumulado (Líneas):**
+        - Muestra la evolución del balance total mes a mes
+        - Líneas gruesas con marcadores para claridad
+        - Permite ver la trayectoria financiera completa
+        - Identifica cuándo se alcanza punto de equilibrio
+        - UBICACIÓN: Proyecciones Multi-Escenario > Comparación
+     
+     3. **Paleta de Colores Institucional:**
+        - Conservador: Rojo (#EF4444)
+        - Moderado: Azul (#2563EB) 
+        - Optimista: Verde (#10B981)
+        - Colores consistentes en todos los gráficos del dashboard
+     
+     4. **Sistema de Marcado de Contratos (Preparado):**
+        - Líneas verticales punteadas para marcar eventos importantes
+        - Anotaciones con nombre y valor del contrato
+        - Colores por tipo: Púrpura (firma), Naranja (renovación), Gris (finalización)
+        - Desactivado por defecto, puede activarse personalizando lista de contratos
+  
+  🎯 BENEFICIOS DE LOS NUEVOS GRÁFICOS:
+  
+     - **Flujo Mensual:** Enfatiza valores discretos por período, facilita identificar meses positivos/negativos
+     - **Efectivo Acumulado:** Representa visualmente el concepto de acumulación, muestra tendencia continua
+     - **Complementarios:** Juntos dan visión completa del flujo de caja (mensual + acumulado)
+     - **Comparación Fácil:** Barras agrupadas permiten comparar 3 escenarios en el mismo mes
+     - **Storytelling:** Permite correlacionar eventos con cambios en el flujo
 
 🚀 VERSIÓN 6.2.3 - FIX CRÍTICO: Corrección de bugs v6.2.2 (Noviembre 11, 2025):
 ================================================================================
@@ -3206,6 +3248,230 @@ def generar_balance_multi_escenario(meses, efectivo_inicial, proyecciones):
     
     return balances
 
+def crear_graficos_efectivo_completos(
+    df_proyeccion, 
+    escenarios=['Conservador', 'Moderado', 'Optimista'],
+    eventos_contratos=None
+):
+    """
+    🆕 v6.2.4: Crea dos gráficos complementarios para análisis de flujo de caja:
+    1. Flujo Neto Mensual (barras agrupadas)
+    2. Efectivo Acumulado (líneas)
+    
+    Parámetros:
+    -----------
+    df_proyeccion : DataFrame
+        Debe contener columnas: 'Periodo', 'Escenario', 'flujo_neto', 'efectivo_acumulado'
+        Puede ser resultado de generar_proyecciones_por_escenario() reformateado
+    escenarios : list
+        Lista de nombres de escenarios a graficar
+    eventos_contratos : list of dict, opcional
+        Lista de diccionarios con información de contratos:
+        [
+            {
+                'fecha': '2025-03', 
+                'nombre': 'Contrato MinEnergía', 
+                'valor': 450000000,
+                'tipo': 'firma'  # 'firma', 'renovacion', 'finalizacion'
+            },
+            ...
+        ]
+    
+    Returns:
+    --------
+    tuple: (fig_flujo, fig_acumulado) - Dos figuras de Plotly
+    """
+    
+    # Paleta de colores institucional SPT
+    colores = {
+        'Conservador': '#EF4444',    # Rojo
+        'Moderado': '#2563EB',        # Azul
+        'Optimista': '#10B981'        # Verde
+    }
+    
+    # Colores para tipos de eventos de contratos
+    colores_eventos = {
+        'firma': '#8b5cf6',           # Púrpura
+        'renovacion': '#f59e0b',      # Naranja
+        'finalizacion': '#6b7280'     # Gris
+    }
+    
+    # ========================================
+    # GRÁFICO 1: FLUJO NETO MENSUAL (BARRAS)
+    # ========================================
+    fig_flujo = go.Figure()
+    
+    # Agregar barras para cada escenario
+    for escenario in escenarios:
+        df_esc = df_proyeccion[df_proyeccion['Escenario'] == escenario].copy()
+        df_esc = df_esc.sort_values('Periodo')
+        
+        fig_flujo.add_trace(go.Bar(
+            name=escenario,
+            x=df_esc['Periodo'],
+            y=df_esc['flujo_neto'],
+            marker_color=colores.get(escenario, '#6b7280'),
+            text=df_esc['flujo_neto'].apply(lambda x: f'${x/1e6:.1f}M' if abs(x) > 1e6 else f'${x/1e3:.0f}k'),
+            textposition='outside',
+            textfont=dict(size=10),
+            hovertemplate=(
+                f'<b>{escenario}</b><br>' +
+                'Mes: %{x}<br>' +
+                'Flujo Neto: $%{y:,.0f}<br>' +
+                '<extra></extra>'
+            )
+        ))
+    
+    # Agregar marcadores de contratos si se proporcionan
+    if eventos_contratos:
+        for evento in eventos_contratos:
+            # Línea vertical para marcar la fecha
+            fig_flujo.add_vline(
+                x=evento['fecha'],
+                line_dash="dash",
+                line_color=colores_eventos.get(evento.get('tipo', 'firma'), '#8b5cf6'),
+                line_width=2,
+                opacity=0.7
+            )
+            
+            # Anotación con nombre del contrato
+            fig_flujo.add_annotation(
+                x=evento['fecha'],
+                y=1,  # Posición relativa (top del gráfico)
+                yref="paper",
+                text=f"📄 {evento['nombre']}<br>${evento['valor']/1e6:.0f}M",
+                showarrow=True,
+                arrowhead=2,
+                arrowsize=1,
+                arrowwidth=2,
+                arrowcolor=colores_eventos.get(evento.get('tipo', 'firma'), '#8b5cf6'),
+                ax=0,
+                ay=-40,
+                bgcolor="white",
+                bordercolor=colores_eventos.get(evento.get('tipo', 'firma'), '#8b5cf6'),
+                borderwidth=2,
+                borderpad=4,
+                font=dict(size=10, color="#1f2937")
+            )
+    
+    fig_flujo.update_layout(
+        title={
+            'text': 'Flujo Neto Mensual por Escenario<br><sub>(con Burn Rate Real + Estacionalidad)</sub>',
+            'x': 0.5,
+            'xanchor': 'center',
+            'font': {'size': 18}
+        },
+        xaxis_title='Período',
+        yaxis_title='Flujo Neto Mensual (COP)',
+        barmode='group',
+        hovermode='x unified',
+        height=550,  # Aumentado para acomodar anotaciones
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        yaxis=dict(
+            tickformat='$,.0f',
+            gridcolor='lightgray',
+            zeroline=True,
+            zerolinewidth=2,
+            zerolinecolor='black'
+        ),
+        plot_bgcolor='white',
+        margin=dict(t=120)  # Más espacio arriba para anotaciones
+    )
+    
+    # ================================================
+    # GRÁFICO 2: EFECTIVO ACUMULADO (LÍNEAS)
+    # ================================================
+    fig_acumulado = go.Figure()
+    
+    # Agregar líneas para cada escenario
+    for escenario in escenarios:
+        df_esc = df_proyeccion[df_proyeccion['Escenario'] == escenario].copy()
+        df_esc = df_esc.sort_values('Periodo')
+        
+        fig_acumulado.add_trace(go.Scatter(
+            name=escenario,
+            x=df_esc['Periodo'],
+            y=df_esc['efectivo_acumulado'],
+            mode='lines+markers',
+            line=dict(
+                color=colores.get(escenario, '#6b7280'),
+                width=3
+            ),
+            marker=dict(size=8),
+            hovertemplate=(
+                f'<b>{escenario}</b><br>' +
+                'Mes: %{x}<br>' +
+                'Efectivo Acumulado: $%{y:,.0f}<br>' +
+                '<extra></extra>'
+            )
+        ))
+    
+    # Agregar marcadores de contratos
+    if eventos_contratos:
+        for evento in eventos_contratos:
+            fig_acumulado.add_vline(
+                x=evento['fecha'],
+                line_dash="dash",
+                line_color=colores_eventos.get(evento.get('tipo', 'firma'), '#8b5cf6'),
+                line_width=2,
+                opacity=0.7
+            )
+            
+            fig_acumulado.add_annotation(
+                x=evento['fecha'],
+                y=1,
+                yref="paper",
+                text=f"📄 {evento['nombre']}<br>${evento['valor']/1e6:.0f}M",
+                showarrow=True,
+                arrowhead=2,
+                arrowsize=1,
+                arrowwidth=2,
+                arrowcolor=colores_eventos.get(evento.get('tipo', 'firma'), '#8b5cf6'),
+                ax=0,
+                ay=-40,
+                bgcolor="white",
+                bordercolor=colores_eventos.get(evento.get('tipo', 'firma'), '#8b5cf6'),
+                borderwidth=2,
+                borderpad=4,
+                font=dict(size=10, color="#1f2937")
+            )
+    
+    fig_acumulado.update_layout(
+        title={
+            'text': 'Evolución del Efectivo Acumulado por Escenario<br><sub>(con Burn Rate Real + Estacionalidad)</sub>',
+            'x': 0.5,
+            'xanchor': 'center',
+            'font': {'size': 18}
+        },
+        xaxis_title='Período',
+        yaxis_title='Efectivo Acumulado (COP)',
+        hovermode='x unified',
+        height=550,
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        yaxis=dict(
+            tickformat='$,.0f',
+            gridcolor='lightgray'
+        ),
+        plot_bgcolor='white',
+        margin=dict(t=120)
+    )
+    
+    return fig_flujo, fig_acumulado
+
 # =============================================================================
 # HEADER Y SIDEBAR
 # =============================================================================
@@ -5212,6 +5478,92 @@ with tab5:
         st.plotly_chart(fig, use_container_width=True, key="chart_proyecciones_flujos_lineal")
         
         st.markdown("---")
+        
+        # 🆕 v6.2.4: NUEVOS GRÁFICOS DE FLUJO NETO MENSUAL Y EFECTIVO ACUMULADO
+        st.markdown("### 💰 Análisis Detallado de Flujo de Caja")
+        st.caption("Visualización mensual del flujo de efectivo y proyección acumulada")
+        
+        # Preparar datos para los nuevos gráficos
+        # Necesitamos reformatear proyecciones para que coincida con el formato esperado
+        datos_graficos = []
+        efectivo_inicial = data['financial'].get('efectivo_actual', 0)
+        
+        for escenario in ['Conservador', 'Moderado', 'Optimista']:
+            df_esc = proyecciones[escenario].copy()
+            efectivo_acum = efectivo_inicial
+            
+            for idx, row in df_esc.iterrows():
+                efectivo_acum += row['flujo_neto']
+                datos_graficos.append({
+                    'Periodo': row['nombre_mes'],
+                    'Escenario': escenario,
+                    'flujo_neto': row['flujo_neto'],
+                    'efectivo_acumulado': efectivo_acum
+                })
+        
+        df_para_graficos = pd.DataFrame(datos_graficos)
+        
+        # 🆕 v6.2.4: Definir contratos importantes a marcar (opcional)
+        # Puedes personalizar esta lista con los contratos reales del pipeline
+        contratos_importantes = None  # Desactivado por defecto
+        
+        # Si quieres activar el marcado de contratos, descomenta y personaliza:
+        # contratos_importantes = [
+        #     {
+        #         'fecha': 'Ene 2026',  # Debe coincidir con formato de nombre_mes
+        #         'nombre': 'Cerrejón Q1',
+        #         'valor': 380_000_000,
+        #         'tipo': 'firma'
+        #     },
+        #     {
+        #         'fecha': 'Abr 2026',
+        #         'nombre': 'MinEnergía',
+        #         'valor': 450_000_000,
+        #         'tipo': 'firma'
+        #     }
+        # ]
+        
+        # Crear los gráficos
+        fig_flujo_mensual, fig_efectivo_acum = crear_graficos_efectivo_completos(
+            df_para_graficos,
+            eventos_contratos=contratos_importantes
+        )
+        
+        # Mostrar PRIMERO el flujo mensual (más importante para ver estacionalidad)
+        st.markdown("#### 💵 Flujo de Caja Mensual")
+        st.plotly_chart(fig_flujo_mensual, use_container_width=True, key="chart_flujo_mensual_barras")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.markdown("""
+            **¿Qué muestra este gráfico?**
+            - El **flujo neto mensual** (ingresos - egresos) de cada período
+            - Permite identificar **meses críticos** con flujo negativo
+            - Muestra claramente el **impacto de contratos** específicos
+            - Las barras agrupadas facilitan **comparar escenarios** en el mismo mes
+            """)
+        with col2:
+            if contratos_importantes:
+                st.markdown("""
+                **Leyenda de Eventos:**
+                - 🟣 Firma de contrato
+                - 🟠 Renovación
+                - ⚫ Finalización
+                """)
+        
+        # Mostrar SEGUNDO el acumulado (visión de largo plazo)
+        st.markdown("#### 📈 Proyección de Efectivo Acumulado")
+        st.plotly_chart(fig_efectivo_acum, use_container_width=True, key="chart_efectivo_acumulado_lineas")
+        
+        st.markdown("""
+        **¿Qué muestra este gráfico?**
+        - La **evolución del balance total** mes a mes
+        - Permite ver la **trayectoria financiera** de la empresa
+        - Identifica cuándo se alcanza el **punto de equilibrio**
+        - Las líneas muestran la **tendencia acumulativa** del efectivo
+        """)
+        
+        st.markdown("---")
 
         # 🆕 v4.7.1: GRÁFICO COMPARATIVO DE BARRAS - Revenue y Egresos por Escenario
         st.markdown("### 📊 Comparación Revenue vs Egresos por Escenario")
@@ -5762,7 +6114,7 @@ with tab6:
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #64748B; padding: 2rem 0;'>
-    <p><strong>SPT Master Forecast v6.0.0 - COMPLETO</strong></p>
+    <p><strong>SPT Master Forecast v6.2.4 - Gráficos de Flujo de Caja</strong></p>
     <p>✅ Fase A: Branding institucional • Fase B: Sidebar persistente • Fase C: Navegación por pestañas</p>
     <p>Desarrollado por <a href='https://www.ai-mindnovation.com' target='_blank'>AI-MindNovation</a></p>
     <p>© 2025 AI-MindNovation. Todos los derechos reservados.</p>
