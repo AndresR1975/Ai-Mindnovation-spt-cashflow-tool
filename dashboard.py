@@ -1,7 +1,31 @@
 """
-SPT MASTER FORECAST - Dashboard Streamlit v6.2.2
+SPT MASTER FORECAST - Dashboard Streamlit v6.2.3
 =================================================
 Sistema de pronóstico y análisis financiero para SPT Colombia
+
+🚀 VERSIÓN 6.2.3 - FIX CRÍTICO: Corrección de bugs v6.2.2 (Noviembre 11, 2025):
+================================================================================
+
+🔧 CORRECCIONES URGENTES (v6.2.3):
+===================================
+
+  🐛 BUGS CORREGIDOS DE v6.2.2:
+  
+     1. **Año saltaba de 2025 a 2027:**
+        - BUG: Fórmula sumaba +1 dos veces al cruzar año
+        - FIX: Simplificado a `ano_proyectado = ano_base + (mes_base + i) // 12`
+        - IMPACTO: Ahora proyecciones muestran 2026 correctamente (no 2027)
+     
+     2. **Necesidades mínimas seguían fijas en métricas principales:**
+        - BUG: calcular_necesidades_excedentes_mejorado() no usaba cálculo dinámico
+        - FIX: Modificada para recibir proyecciones_df y usar calcular_necesidades_minimas_dinamicas()
+        - IMPACTO: Métricas principales ahora reflejan costos de contratos
+  
+  ✅ RESULTADO ESPERADO v6.2.3:
+     - ✅ Etiquetas: "Oct 2025", "Nov 2025", "Ene 2026" (NO 2027)
+     - ✅ Necesidades en Conservador: ~$156k (sin contratos)
+     - ✅ Necesidades en Moderado: ~$167k (con contratos) ← DIFERENTE
+     - ✅ Gráfico muestra brecha Nov 2025 - Abr 2026 correctamente
 
 🚀 VERSIÓN 6.2.2 - FIX CRÍTICO: NECESIDADES MÍNIMAS DINÁMICAS (Noviembre 11, 2025):
 ===================================================================================
@@ -2203,16 +2227,17 @@ def calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate):
         else:
             return float('inf')  # Runway infinito si no hay burn rate
 
-def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados, burn_rate, meses_colchon=2):
+def calcular_necesidades_excedentes_mejorado(efectivo_actual, proyecciones_df, financial_data, meses_colchon=2):
     """
     ✅ Necesidades/excedentes con balance completo
     ✅ v4.5.5: Recibe burn_rate como parámetro (calculado dinámicamente)
     🆕 v4.6.0: Meses de colchón configurable
+    ✅ v6.2.3: FIX CRÍTICO - Usa necesidades DINÁMICAS que consideran costos de contratos mes a mes
     
     Args:
         efectivo_actual: Efectivo disponible actual
-        flujos_proyectados: Lista de flujos netos proyectados
-        burn_rate: Burn rate mensual (calculado dinámicamente)
+        proyecciones_df: DataFrame con proyecciones (debe incluir 'flujo_neto', 'revenue', 'costos_contratos')
+        financial_data: Dict con 'gastos_fijos' y 'tasa_costos_variables'
         meses_colchon: Número de meses de burn rate para margen de protección (1, 2 o 3)
     
     Returns:
@@ -2221,11 +2246,25 @@ def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados
     NOTA: Con pagos a 30 días, se recomienda mínimo 2 meses de colchón:
     - Mes 1: Cubrir operación actual
     - Mes 2: Cubrir operación mientras se cobran ventas del mes 1
+    
+    ✅ v6.2.3: CAMBIO CRÍTICO
+    - ANTES: necesidades_minimas = burn_rate * meses_colchon (FIJO para todos los meses)
+    - AHORA: necesidades_minimas = PROMEDIO de necesidades dinámicas de 3 meses (VARIABLE según contratos)
     """
+    flujos_proyectados = proyecciones_df['flujo_neto'].tolist()
     balance_proyectado = efectivo_actual + sum(flujos_proyectados)
     
-    # 🆕 v4.6.0: Necesidades mínimas configurables (1, 2 o 3 meses)
-    necesidades_minimas = burn_rate * meses_colchon
+    # ✅ v6.2.3: Calcular necesidades mínimas DINÁMICAS mes a mes
+    necesidades_dinamicas = calcular_necesidades_minimas_dinamicas(
+        proyecciones_df,
+        financial_data['gastos_fijos'],
+        financial_data['tasa_costos_variables'],
+        meses_colchon
+    )
+    
+    # Para la métrica principal, usar el PROMEDIO de los 3 meses
+    # (Esto representa las necesidades típicas del período proyectado)
+    necesidades_minimas = sum(necesidades_dinamicas.values()) / len(necesidades_dinamicas)
     
     excedente_o_deficit = balance_proyectado - necesidades_minimas
     
@@ -2696,12 +2735,8 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         # Calcular mes y año proyectado
         mes_proyectado = ((mes_base + i) % 12) + 1
         
-        # 🆕 v6.2.0: Calcular año correcto
-        # Si el mes proyectado es menor que mes_base, significa que cruzamos al año siguiente
-        if i > 0 and mes_proyectado <= mes_base:
-            ano_proyectado = ano_base + 1 + (mes_base + i) // 12
-        else:
-            ano_proyectado = ano_base + (mes_base + i) // 12
+        # ✅ v6.2.3: Calcular año correcto (fix del bug que saltaba de 2025 a 2027)
+        ano_proyectado = ano_base + (mes_base + i) // 12
         
         nombre_mes = meses_nombres[mes_proyectado - 1]
         nombre_mes_abrev = meses_abrev[mes_proyectado - 1]
@@ -4326,10 +4361,11 @@ with tab3:
 
     runway = calcular_runway_mejorado(efectivo_actual, flujos_proyectados, burn_rate)
     # 🆕 v4.6.0: Pasar meses_colchon configurado por el usuario
+    # ✅ v6.2.3: Ahora pasa proyecciones_df y financial_data para cálculo dinámico
     analisis_cash = calcular_necesidades_excedentes_mejorado(
         efectivo_actual, 
-        flujos_proyectados, 
-        burn_rate,
+        proyecciones_df,  # ✅ v6.2.3: DataFrame completo con costos_contratos
+        data['financial'],  # ✅ v6.2.3: Datos financieros para cálculo dinámico
         st.session_state.meses_colchon
     )
 
@@ -4941,10 +4977,8 @@ with tab5:
                 vigencia_data = []
                 for i in range(min(meses_proyeccion, 12)):  # Limitar a 12 meses para no saturar
                     mes_proyectado = ((mes_base + i) % 12) + 1
-                    if i > 0 and mes_proyectado <= mes_base:
-                        ano_proyectado = ano_base + 1
-                    else:
-                        ano_proyectado = ano_base
+                    # ✅ v6.2.3: Calcular año correcto (mismo fix que en generar_proyecciones_por_escenario)
+                    ano_proyectado = ano_base + (mes_base + i) // 12
                     
                     nombre_mes = meses_nombres_abrev[mes_proyectado - 1]
                     
