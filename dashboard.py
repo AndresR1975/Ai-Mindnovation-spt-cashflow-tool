@@ -2284,6 +2284,7 @@ def generar_recomendaciones_inversion(df_excedentes, rentabilidad_estimada=0.10)
 def calcular_revenue_adicional_escenarios():
     """
     ✅ v5.0.2: Calcula revenue adicional de contratos y cotizaciones
+    🆕 v6.1.0: Debug ultra detallado para diagnosticar problema de contratos
     
     Returns:
         dict con:
@@ -2291,12 +2292,43 @@ def calcular_revenue_adicional_escenarios():
         - revenue_cotizaciones_50pct: 50% del revenue potencial de cotizaciones
         - revenue_equipos_disponibles_50pct: 50% del revenue de equipos disponibles
     """
+    # 🆕 v6.1.0: Debug detallado
+    print("\n" + "="*80)
+    print("🔍 DEBUG ULTRA DETALLADO - calcular_revenue_adicional_escenarios()")
+    print("="*80)
+    
     # Revenue de contratos activos
     revenue_contratos = 0
+    
+    # 🆕 v6.1.0: Debug de contratos
+    print(f"\n📋 Verificando contratos en session_state...")
     if st.session_state.get('contratos_manuales'):
-        for contrato in st.session_state.contratos_manuales:
+        print(f"   ✅ contratos_manuales existe")
+        print(f"   📊 Total contratos guardados: {len(st.session_state.contratos_manuales)}")
+        
+        for idx, contrato in enumerate(st.session_state.contratos_manuales):
+            print(f"\n   Contrato #{idx+1}:")
+            print(f"      ID: {contrato.get('contrato_id', 'N/A')}")
+            print(f"      Cliente: {contrato.get('cliente', 'N/A')}")
+            print(f"      Estado guardado: '{contrato.get('estado', 'N/A')}'")
+            print(f"      Estado (repr): {repr(contrato.get('estado', 'N/A'))}")
+            print(f"      Estado (tipo): {type(contrato.get('estado', 'N/A'))}")
+            print(f"      Tarifa mensual: ${contrato.get('tarifa_mensual_total', 0):,.0f}")
+            
+            estado = contrato.get('estado')
+            print(f"      Comparando: '{estado}' == 'Activo' ? {estado == 'Activo'}")
+            print(f"      Comparando (strip): '{estado.strip() if estado else ''}' == 'Activo' ? {estado.strip() == 'Activo' if estado else False}")
+            
             if contrato.get('estado') == 'Activo':
-                revenue_contratos += contrato.get('tarifa_mensual', 0)
+                tarifa = contrato.get('tarifa_mensual_total', 0)
+                revenue_contratos += tarifa
+                print(f"      ✅ CONTRATO ACTIVO DETECTADO - Sumando ${tarifa:,.0f}")
+            else:
+                print(f"      ❌ NO SE DETECTÓ COMO ACTIVO")
+    else:
+        print(f"   ❌ contratos_manuales NO existe o está vacío")
+    
+    print(f"\n💰 TOTAL Revenue Contratos: ${revenue_contratos:,.0f}")
     
     # Revenue de cotizaciones (50% ponderado por probabilidad)
     revenue_cotizaciones = 0
@@ -2318,6 +2350,10 @@ def calcular_revenue_adicional_escenarios():
     
     # 50% de los equipos disponibles
     revenue_equipos_disponibles_50pct = revenue_equipos_disponibles * 0.5
+    
+    print(f"📋 Revenue Cotizaciones (50%): ${revenue_cotizaciones:,.0f}")
+    print(f"🚧 Revenue Equipos Disponibles (50%): ${revenue_equipos_disponibles_50pct:,.0f}")
+    print("="*80 + "\n")
     
     return {
         'revenue_contratos': revenue_contratos,
