@@ -2362,6 +2362,126 @@ def calcular_revenue_adicional_escenarios():
     }
 
 
+def calcular_revenue_adicional_por_mes(mes_proyectado, ano_proyectado):
+    """
+    🆕 v6.2.0: Calcula revenue adicional Y COSTOS para un MES ESPECÍFICO considerando vigencia
+    
+    Esta función reemplaza calcular_revenue_adicional_escenarios() en el loop de proyecciones
+    para considerar la duración real de contratos y cotizaciones.
+    
+    Args:
+        mes_proyectado: Mes del año (1-12)
+        ano_proyectado: Año (ej: 2024)
+    
+    Returns:
+        dict con revenue adicional Y costos específicos SOLO de contratos/cotizaciones vigentes en ese mes
+    """
+    from datetime import datetime
+    
+    # Crear fecha del mes proyectado (usar día 15 para estar en medio del mes)
+    fecha_proyectada = datetime(ano_proyectado, mes_proyectado, 15)
+    
+    # Revenue de contratos activos vigentes en este mes
+    revenue_contratos = 0
+    costos_contratos = 0  # 🆕 v6.2.0: Acumular costos específicos
+    
+    if st.session_state.get('contratos_manuales'):
+        for contrato in st.session_state.contratos_manuales:
+            if contrato.get('estado') == 'Activo':
+                # Verificar si el contrato está vigente en este mes
+                try:
+                    fecha_inicio_str = contrato.get('fecha_inicio')
+                    fecha_fin_str = contrato.get('fecha_fin', 'Abierta')
+                    
+                    # Parsear fecha de inicio
+                    if isinstance(fecha_inicio_str, str):
+                        fecha_inicio = datetime.fromisoformat(fecha_inicio_str)
+                    else:
+                        fecha_inicio = fecha_inicio_str
+                    
+                    # Parsear fecha de fin
+                    if fecha_fin_str == 'Abierta' or fecha_fin_str is None:
+                        # Contrato sin fecha fin - está vigente indefinidamente
+                        fecha_fin = None
+                    elif isinstance(fecha_fin_str, str):
+                        fecha_fin = datetime.fromisoformat(fecha_fin_str)
+                    else:
+                        fecha_fin = fecha_fin_str
+                    
+                    # Verificar vigencia
+                    if fecha_proyectada >= fecha_inicio:
+                        if fecha_fin is None or fecha_proyectada <= fecha_fin:
+                            # Contrato vigente en este mes
+                            tarifa = contrato.get('tarifa_mensual_total', 0)
+                            costos = contrato.get('costos_operativos_mensuales', 0)  # 🆕 v6.2.0
+                            revenue_contratos += tarifa
+                            costos_contratos += costos
+                
+                except (ValueError, TypeError) as e:
+                    # Si hay error parseando fechas, asumir que está vigente (fallback)
+                    tarifa = contrato.get('tarifa_mensual_total', 0)
+                    costos = contrato.get('costos_operativos_mensuales', 0)  # 🆕 v6.2.0
+                    revenue_contratos += tarifa
+                    costos_contratos += costos
+    
+    # Revenue de cotizaciones vigentes en este mes
+    revenue_cotizaciones = 0
+    if st.session_state.get('cotizaciones_manuales'):
+        for cotizacion in st.session_state.cotizaciones_manuales:
+            # Verificar vigencia de la cotización
+            try:
+                fecha_inicio_str = cotizacion.get('fecha_inicio')
+                
+                if isinstance(fecha_inicio_str, str):
+                    fecha_inicio = datetime.fromisoformat(fecha_inicio_str)
+                else:
+                    fecha_inicio = fecha_inicio_str
+                
+                duracion_meses = cotizacion.get('duracion_meses', 0)
+                
+                # Calcular fecha fin
+                if duracion_meses > 0:
+                    # Agregar meses a la fecha de inicio
+                    mes_fin = fecha_inicio.month + duracion_meses
+                    ano_fin = fecha_inicio.year + (mes_fin - 1) // 12
+                    mes_fin = ((mes_fin - 1) % 12) + 1
+                    fecha_fin = datetime(ano_fin, mes_fin, fecha_inicio.day)
+                else:
+                    fecha_fin = None  # Sin duración = indefinido
+                
+                # Verificar vigencia
+                if fecha_proyectada >= fecha_inicio:
+                    if fecha_fin is None or fecha_proyectada <= fecha_fin:
+                        # Cotización vigente en este mes
+                        prob = cotizacion.get('probabilidad_cierre', 50) / 100
+                        tarifa_mensual = cotizacion.get('tarifa_total', 0)
+                        revenue_cotizaciones += tarifa_mensual * prob * 0.5  # 50% del potencial
+            
+            except (ValueError, TypeError, AttributeError) as e:
+                # Si hay error, asumir que está vigente (fallback)
+                prob = cotizacion.get('probabilidad_cierre', 50) / 100
+                tarifa_mensual = cotizacion.get('tarifa_total', 0)
+                revenue_cotizaciones += tarifa_mensual * prob * 0.5
+    
+    # Revenue de equipos disponibles (estos no tienen vigencia - siempre están)
+    revenue_equipos_disponibles = 0
+    equipos_disponibles = get_equipos_disponibles()
+    
+    for equipo in equipos_disponibles:
+        tarifa_mensual = get_tarifa_sugerida(equipo['tipo'])
+        if tarifa_mensual > 0:
+            revenue_equipos_disponibles += tarifa_mensual
+    
+    revenue_equipos_disponibles_50pct = revenue_equipos_disponibles * 0.5
+    
+    return {
+        'revenue_contratos': revenue_contratos,
+        'revenue_cotizaciones_50pct': revenue_cotizaciones,
+        'revenue_equipos_disponibles_50pct': revenue_equipos_disponibles_50pct,
+        'costos_contratos': costos_contratos  # 🆕 v6.2.0
+    }
+
+
 def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, escenario, seasonal_factors=None, ultimo_mes_historico=None):
     """
     ✅ v5.0.2: Genera proyecciones según NUEVAS FÓRMULAS de escenarios
@@ -2410,6 +2530,7 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         })
     
     # Calcular revenue adicional de contratos, cotizaciones y equipos disponibles
+    # 🆕 v6.2.0: Esta llamada es solo para el debug UI - las proyecciones usarán calcular_revenue_adicional_por_mes()
     revenue_adicional = calcular_revenue_adicional_escenarios()
     
     # 🆕 v6.0.8: Debug logging para verificar que contratos se sumen correctamente
@@ -2419,25 +2540,8 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         print(f"   - Cotizaciones (50%): ${revenue_adicional['revenue_cotizaciones_50pct']:,.0f}/mes")
         print(f"   - Equipos disponibles (50%): ${revenue_adicional['revenue_equipos_disponibles_50pct']:,.0f}/mes")
     
-    # Configuración de revenue base según escenario
-    if escenario == 'Conservador':
-        # Solo equipos operando
-        revenue_base_escenario = revenue_base
-    elif escenario == 'Moderado':
-        # Equipos operando + contratos + 50% cotizaciones
-        revenue_base_escenario = (revenue_base + 
-                                  revenue_adicional['revenue_contratos'] + 
-                                  revenue_adicional['revenue_cotizaciones_50pct'])
-        # 🆕 v6.0.8: Debug para verificar suma
-        print(f"   ✅ Revenue base Moderado: ${revenue_base:,.0f} + ${revenue_adicional['revenue_contratos']:,.0f} + ${revenue_adicional['revenue_cotizaciones_50pct']:,.0f} = ${revenue_base_escenario:,.0f}/mes")
-    else:  # Optimista
-        # Moderado + 50% equipos disponibles
-        revenue_base_escenario = (revenue_base + 
-                                  revenue_adicional['revenue_contratos'] + 
-                                  revenue_adicional['revenue_cotizaciones_50pct'] +
-                                  revenue_adicional['revenue_equipos_disponibles_50pct'])
-        # 🆕 v6.0.8: Debug para verificar suma
-        print(f"   ✅ Revenue base Optimista: ${revenue_base:,.0f} + adicionales = ${revenue_base_escenario:,.0f}/mes")
+    # 🆕 v6.2.0: Ya NO calculamos revenue_base_escenario una sola vez
+    # Ahora se calcula en cada iteración del loop considerando vigencia de contratos
     
     # Tasas de crecimiento mensual
     tasas_crecimiento = {
@@ -2454,23 +2558,51 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
     meses_abrev = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
                    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
     
+    # 🆕 v6.2.0: Calcular año base para proyecciones
+    if ultimo_mes_historico is not None:
+        mes_base = ultimo_mes_historico
+    else:
+        mes_base = datetime.now().month
+    
+    ano_base = datetime.now().year
+    
     proyecciones = []
     
     for i in range(meses):
-        # 🆕 v6.0.6: CORRECCIÓN CRÍTICA - Usar último mes histórico
-        # Si se proporciona ultimo_mes_historico, usarlo; si no, usar mes actual del sistema
-        if ultimo_mes_historico is not None:
-            mes_base = ultimo_mes_historico
-        else:
-            mes_base = datetime.now().month
-        
-        # Calcular mes proyectado (mes siguiente al último histórico + i)
+        # Calcular mes y año proyectado
         mes_proyectado = ((mes_base + i) % 12) + 1
+        
+        # 🆕 v6.2.0: Calcular año correcto
+        # Si el mes proyectado es menor que mes_base, significa que cruzamos al año siguiente
+        if i > 0 and mes_proyectado <= mes_base:
+            ano_proyectado = ano_base + 1 + (mes_base + i) // 12
+        else:
+            ano_proyectado = ano_base + (mes_base + i) // 12
+        
         nombre_mes = meses_nombres[mes_proyectado - 1]
         nombre_mes_abrev = meses_abrev[mes_proyectado - 1]
         
+        # 🆕 v6.2.0: Calcular revenue adicional para ESTE MES específico
+        revenue_adicional_mes = calcular_revenue_adicional_por_mes(mes_proyectado, ano_proyectado)
+        
+        # Configuración de revenue base según escenario (PARA ESTE MES)
+        if escenario == 'Conservador':
+            # Solo equipos operando
+            revenue_base_escenario_mes = revenue_base
+        elif escenario == 'Moderado':
+            # Equipos operando + contratos vigentes + 50% cotizaciones vigentes
+            revenue_base_escenario_mes = (revenue_base + 
+                                          revenue_adicional_mes['revenue_contratos'] + 
+                                          revenue_adicional_mes['revenue_cotizaciones_50pct'])
+        else:  # Optimista
+            # Moderado + 50% equipos disponibles
+            revenue_base_escenario_mes = (revenue_base + 
+                                          revenue_adicional_mes['revenue_contratos'] + 
+                                          revenue_adicional_mes['revenue_cotizaciones_50pct'] +
+                                          revenue_adicional_mes['revenue_equipos_disponibles_50pct'])
+        
         # Revenue proyectado con crecimiento (sin estacionalidad aún)
-        revenue_base_crecimiento = revenue_base_escenario * (1 + crecimiento)**i
+        revenue_base_crecimiento = revenue_base_escenario_mes * (1 + crecimiento)**i
         
         # 🆕 v6.0.1: Aplicar factor estacional si está disponible
         if seasonal_factors and nombre_mes in seasonal_factors:
@@ -2482,7 +2614,10 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         
         # Burn rate dinámico según revenue del mes
         costos_variables = revenue_mes * tasa_costos
-        egresos_totales = gastos_fijos + costos_variables
+        
+        # 🆕 v6.2.0: Sumar costos específicos del contrato
+        costos_especificos_contratos = revenue_adicional_mes.get('costos_contratos', 0)
+        egresos_totales = gastos_fijos + costos_variables + costos_especificos_contratos
         
         # Flujo neto
         flujo_neto = revenue_mes - egresos_totales
@@ -3715,6 +3850,18 @@ with tab2:
                     options=["Activo", "Pendiente", "En negociación"],
                     help="Estado actual del contrato"
                 )
+                
+                # 🆕 v6.2.0: Costos operativos específicos del contrato
+                st.markdown("#### 💰 Costos Operativos del Contrato")
+                st.caption("Costos mensuales específicos de este contrato (personal dedicado, mantenimiento extra, seguros, etc.)")
+                
+                costos_operativos_contrato = st.number_input(
+                    "Costos Operativos Mensuales (USD)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=500.0,
+                    help="Costos adicionales asociados exclusivamente a este contrato (no incluye costos variables generales)"
+                )
 
             st.markdown("#### Equipos Asignados")
             st.caption("💡 La tarifa mensual total se calculará automáticamente según los equipos asignados")
@@ -3772,6 +3919,7 @@ with tab2:
                         'fecha_fin': fecha_fin_contrato.isoformat() if fecha_fin_contrato else 'Abierta',
                         'duracion_meses': duracion_contrato_meses,
                         'tarifa_mensual_total': tarifa_mensual_contrato,
+                        'costos_operativos_mensuales': costos_operativos_contrato,  # 🆕 v6.2.0
                         'estado': estado_contrato,
                         'equipos': st.session_state.equipos_temp_contract.copy(),  # 🆕 v4.9.3
                         'notas': notas_contrato,
