@@ -6020,10 +6020,25 @@ with tab6:
                 print(f"Primer factor: {list(data['seasonal_factors'].items())[0]}")
             print(f"Último mes histórico: {data['historical'].get('ultimo_mes')}")
             print(f"Meses balance: {meses_balance}")
-            df_debug = proyecciones_bal[escenario].head(3)
-            print(f"\nPrimeros 3 meses de {escenario}:")
-            print(df_debug[['mes', 'nombre_mes', 'revenue', 'egresos_totales', 'flujo_neto']].to_string())
-            print(f"Revenue promedio (3m): ${df_debug['revenue'].mean():,.0f}")
+            
+            # ✅ v6.2.4 FIX: Protección contra KeyError en debug
+            try:
+                df_debug = proyecciones_bal[escenario].head(3)
+                print(f"\nPrimeros 3 meses de {escenario}:")
+                
+                # Verificar qué columnas existen
+                columnas_disponibles = ['mes', 'nombre_mes', 'revenue', 'egresos_totales', 'flujo_neto']
+                columnas_existentes = [col for col in columnas_disponibles if col in df_debug.columns]
+                
+                if columnas_existentes:
+                    print(df_debug[columnas_existentes].to_string())
+                    if 'revenue' in df_debug.columns:
+                        print(f"Revenue promedio (3m): ${df_debug['revenue'].mean():,.0f}")
+                else:
+                    print(f"Columnas disponibles: {list(df_debug.columns)}")
+            except Exception as e:
+                print(f"⚠️ Error en debug: {e}")
+            
             print(f"{'='*60}\n")
 
         balances = generar_balance_multi_escenario(meses_balance, efectivo_actual, proyecciones_bal)
@@ -6032,12 +6047,28 @@ with tab6:
         with st.expander("🔍 DEBUG: Proyecciones por Escenario (primeros 3 meses)", expanded=False):
             for escenario in ['Conservador', 'Moderado', 'Optimista']:
                 if escenario in proyecciones_bal:
-                    df = proyecciones_bal[escenario].head(3)
-                    st.write(f"**{escenario}:**")
-                    st.dataframe(df[['mes', 'nombre_mes', 'revenue', 'egresos_totales', 'flujo_neto']])
-                    st.write(f"Revenue promedio (3m): ${df['revenue'].mean():,.0f}")
-                    st.write(f"Flujo neto promedio (3m): ${df['flujo_neto'].mean():,.0f}")
-                    st.write("---")
+                    try:
+                        df = proyecciones_bal[escenario].head(3)
+                        st.write(f"**{escenario}:**")
+                        
+                        # ✅ v6.2.4 FIX: Verificar columnas antes de mostrar
+                        columnas_deseadas = ['mes', 'nombre_mes', 'revenue', 'egresos_totales', 'flujo_neto']
+                        columnas_existentes = [col for col in columnas_deseadas if col in df.columns]
+                        
+                        if columnas_existentes:
+                            st.dataframe(df[columnas_existentes])
+                            if 'revenue' in df.columns:
+                                st.write(f"Revenue promedio (3m): ${df['revenue'].mean():,.0f}")
+                            if 'flujo_neto' in df.columns:
+                                st.write(f"Flujo neto promedio (3m): ${df['flujo_neto'].mean():,.0f}")
+                        else:
+                            st.write(f"Columnas disponibles: {list(df.columns)}")
+                            st.dataframe(df)
+                        
+                        st.write("---")
+                    except Exception as e:
+                        st.warning(f"⚠️ Error mostrando debug de {escenario}: {str(e)}")
+
 
         fig = go.Figure()
 
@@ -6048,14 +6079,27 @@ with tab6:
         }
 
         for escenario, df_balance in balances.items():
-            fig.add_trace(go.Scatter(
-                x=df_balance['nombre_mes'],  # ✅ v6.2.3: Usar nombre_mes con año (ej: "Oct 2025")
-                y=df_balance['efectivo_final'],
-                mode='lines+markers',
-                name=escenario,
-                line=dict(color=colores[escenario], width=3),
-                marker=dict(size=10)
-            ))
+            # ✅ v6.2.4 FIX: Protección contra KeyError en nombre_mes
+            try:
+                # Usar nombre_mes si existe, sino mes
+                if 'nombre_mes' in df_balance.columns:
+                    x_values = df_balance['nombre_mes']
+                elif 'mes' in df_balance.columns:
+                    x_values = df_balance['mes'].apply(lambda x: f"Mes {x}")
+                else:
+                    x_values = list(range(1, len(df_balance) + 1))
+                
+                fig.add_trace(go.Scatter(
+                    x=x_values,
+                    y=df_balance['efectivo_final'],
+                    mode='lines+markers',
+                    name=escenario,
+                    line=dict(color=colores[escenario], width=3),
+                    marker=dict(size=10)
+                ))
+            except Exception as e:
+                print(f"⚠️ Error graficando {escenario}: {e}")
+                continue
 
         fig.add_hline(y=0, line_dash="dash", line_color="red", line_width=2,
                      annotation_text="⚠️ Punto Crítico", annotation_position="right")
