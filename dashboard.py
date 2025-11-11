@@ -4531,6 +4531,58 @@ with tab5:
         # 🆕 v6.0.1: GRÁFICO DE REVENUE POR ESCENARIO (muestra estacionalidad claramente)
         st.markdown("#### 💰 Revenue Proyectado por Escenario + Histórico")
         
+        # 🆕 v6.0.9: DEBUG VISIBLE - Mostrar contratos y cotizaciones detectados
+        revenue_adicional = calcular_revenue_adicional_escenarios()
+        
+        if revenue_adicional['revenue_contratos'] > 0 or revenue_adicional['revenue_cotizaciones_50pct'] > 0 or revenue_adicional['revenue_equipos_disponibles_50pct'] > 0:
+            with st.expander("🔍 DEBUG: Revenue Adicional Detectado", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric(
+                        "💼 Contratos Activos",
+                        f"${revenue_adicional['revenue_contratos']:,.0f}/mes",
+                        help="Revenue mensual de contratos activos marcados como 'Activo'"
+                    )
+                with col2:
+                    st.metric(
+                        "📋 Cotizaciones (50%)",
+                        f"${revenue_adicional['revenue_cotizaciones_50pct']:,.0f}/mes",
+                        help="50% del revenue potencial de cotizaciones ponderado por probabilidad"
+                    )
+                with col3:
+                    st.metric(
+                        "🚧 Equipos Disponibles (50%)",
+                        f"${revenue_adicional['revenue_equipos_disponibles_50pct']:,.0f}/mes",
+                        help="Revenue potencial si se alquila 50% de equipos disponibles/standby"
+                    )
+                
+                # Mostrar cómo se aplican a cada escenario
+                revenue_base = data['historical']['revenue_promedio']
+                st.markdown("**Composición del Revenue Base por Escenario:**")
+                
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    conservador_total = revenue_base
+                    st.info(f"**Conservador:**\n${revenue_base:,.0f}\n(Solo equipos operando)")
+                
+                with col_b:
+                    moderado_total = (revenue_base + 
+                                      revenue_adicional['revenue_contratos'] + 
+                                      revenue_adicional['revenue_cotizaciones_50pct'])
+                    st.success(f"**Moderado:**\n${moderado_total:,.0f}\n(+${revenue_adicional['revenue_contratos'] + revenue_adicional['revenue_cotizaciones_50pct']:,.0f} adicional)")
+                
+                with col_c:
+                    optimista_total = (revenue_base + 
+                                       revenue_adicional['revenue_contratos'] + 
+                                       revenue_adicional['revenue_cotizaciones_50pct'] +
+                                       revenue_adicional['revenue_equipos_disponibles_50pct'])
+                    st.success(f"**Optimista:**\n${optimista_total:,.0f}\n(+${revenue_adicional['revenue_contratos'] + revenue_adicional['revenue_cotizaciones_50pct'] + revenue_adicional['revenue_equipos_disponibles_50pct']:,.0f} adicional)")
+                
+                if revenue_adicional['revenue_contratos'] == 0 and (st.session_state.get('contratos_manuales') and len(st.session_state.contratos_manuales) > 0):
+                    st.error("⚠️ **PROBLEMA DETECTADO:** Tienes contratos registrados pero no se están detectando como 'Activos'. Verifica que el estado sea 'Activo' en la sección de Contratos.")
+        else:
+            st.info("ℹ️ No hay contratos, cotizaciones ni equipos disponibles registrados. Los 3 escenarios usan el mismo revenue base.")
+        
         # 🆕 v6.0.5: Debug - Mostrar qué factores se están usando
         if data['seasonal_factors']:
             # Verificar si hay variación significativa en los factores
@@ -4602,42 +4654,55 @@ with tab5:
 
         # 🆕 v6.0.8: Agregar proyecciones CON CONEXIÓN VISUAL a H12
         for escenario, df_proj in proyecciones.items():
-            # Usar nombres de mes reales (Oct, Nov, Dic...)
-            proyeccion_x = df_proj['nombre_mes'].tolist()
-            proyeccion_y = df_proj['revenue'].tolist()
-            
-            # 🆕 v6.0.8: Si hay histórico, agregar línea de conexión
-            if ultimo_revenue_historico is not None and ultimo_mes_historico_label is not None:
-                # Agregar línea de conexión invisible desde H12 hasta primer mes proyectado
-                x_con_conexion = [ultimo_mes_historico_label] + proyeccion_x
-                y_con_conexion = [ultimo_revenue_historico] + proyeccion_y
+            # 🆕 v6.0.9: Protección robusta contra errores
+            try:
+                if df_proj is None or len(df_proj) == 0:
+                    continue  # Saltar si está vacío
                 
-                fig_revenue.add_trace(go.Scatter(
-                    x=x_con_conexion,
-                    y=y_con_conexion,
-                    mode='lines+markers',
-                    name=escenario,
-                    line=dict(color=colores[escenario], width=4),
-                    marker=dict(size=10, symbol='circle'),
-                    hovertemplate='<b>%{fullData.name}</b><br>' +
-                                 'Mes: %{x}<br>' +
-                                 'Revenue: $%{y:,.0f}<br>' +
-                                 '<extra></extra>'
-                ))
-            else:
-                # Sin histórico, solo proyecciones
-                fig_revenue.add_trace(go.Scatter(
-                    x=proyeccion_x,
-                    y=proyeccion_y,
-                    mode='lines+markers',
-                    name=escenario,
-                    line=dict(color=colores[escenario], width=4),
-                    marker=dict(size=10, symbol='circle'),
-                    hovertemplate='<b>%{fullData.name}</b><br>' +
-                                 'Mes: %{x}<br>' +
-                                 'Revenue: $%{y:,.0f}<br>' +
-                                 '<extra></extra>'
-                ))
+                # Verificar que tiene las columnas necesarias
+                if 'nombre_mes' not in df_proj.columns or 'revenue' not in df_proj.columns:
+                    continue  # Saltar si faltan columnas
+                
+                # Usar nombres de mes reales (Oct, Nov, Dic...)
+                proyeccion_x = df_proj['nombre_mes'].tolist()
+                proyeccion_y = df_proj['revenue'].tolist()
+                
+                # 🆕 v6.0.8: Si hay histórico, agregar línea de conexión
+                if ultimo_revenue_historico is not None and ultimo_mes_historico_label is not None:
+                    # Agregar línea de conexión invisible desde H12 hasta primer mes proyectado
+                    x_con_conexion = [ultimo_mes_historico_label] + proyeccion_x
+                    y_con_conexion = [ultimo_revenue_historico] + proyeccion_y
+                    
+                    fig_revenue.add_trace(go.Scatter(
+                        x=x_con_conexion,
+                        y=y_con_conexion,
+                        mode='lines+markers',
+                        name=escenario,
+                        line=dict(color=colores[escenario], width=4),
+                        marker=dict(size=10, symbol='circle'),
+                        hovertemplate='<b>%{fullData.name}</b><br>' +
+                                     'Mes: %{x}<br>' +
+                                     'Revenue: $%{y:,.0f}<br>' +
+                                     '<extra></extra>'
+                    ))
+                else:
+                    # Sin histórico, solo proyecciones
+                    fig_revenue.add_trace(go.Scatter(
+                        x=proyeccion_x,
+                        y=proyeccion_y,
+                        mode='lines+markers',
+                        name=escenario,
+                        line=dict(color=colores[escenario], width=4),
+                        marker=dict(size=10, symbol='circle'),
+                        hovertemplate='<b>%{fullData.name}</b><br>' +
+                                     'Mes: %{x}<br>' +
+                                     'Revenue: $%{y:,.0f}<br>' +
+                                     '<extra></extra>'
+                    ))
+            except Exception as e:
+                # Silenciar cualquier error en el rendering del gráfico
+                print(f"⚠️ Error al graficar escenario {escenario}: {str(e)}")
+                continue
 
         fig_revenue.update_layout(
             height=500,
