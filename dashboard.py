@@ -14,18 +14,27 @@ Sistema de pronóstico y análisis financiero para SPT Colombia
      1. **Año saltaba de 2025 a 2027:**
         - BUG: Fórmula sumaba +1 dos veces al cruzar año
         - FIX: Simplificado a `ano_proyectado = ano_base + (mes_base + i) // 12`
+        - UBICACIONES: generar_proyecciones_por_escenario() + DEBUG de vigencia
         - IMPACTO: Ahora proyecciones muestran 2026 correctamente (no 2027)
      
      2. **Necesidades mínimas seguían fijas en métricas principales:**
         - BUG: calcular_necesidades_excedentes_mejorado() no usaba cálculo dinámico
         - FIX: Modificada para recibir proyecciones_df y usar calcular_necesidades_minimas_dinamicas()
         - IMPACTO: Métricas principales ahora reflejan costos de contratos
+     
+     3. **Balance Proyectado Multi-Escenario sin meses reales ni estacionalidad:**
+        - BUG: Reportes Detallados mostraban "Mes 1, Mes 2" sin año ni estacionalidad visible
+        - FIX: Modificado generar_balance_multi_escenario() para incluir nombre_mes con año
+        - FIX: Actualizado gráfico para usar nombre_mes en lugar de "Mes X"
+        - UBICACIÓN: Reportes Detallados > Balance Proyectado
+        - IMPACTO: Ahora muestra "Oct 2025, Nov 2025, Ene 2026" y refleja contratos/estacionalidad
   
   ✅ RESULTADO ESPERADO v6.2.3:
-     - ✅ Etiquetas: "Oct 2025", "Nov 2025", "Ene 2026" (NO 2027)
+     - ✅ Etiquetas: "Oct 2025", "Nov 2025", "Ene 2026" (NO 2027) en TODOS los gráficos
      - ✅ Necesidades en Conservador: ~$156k (sin contratos)
      - ✅ Necesidades en Moderado: ~$167k (con contratos) ← DIFERENTE
-     - ✅ Gráfico muestra brecha Nov 2025 - Abr 2026 correctamente
+     - ✅ Gráficos muestran brecha Nov 2025 - Abr 2026 correctamente
+     - ✅ Balance Proyectado Multi-Escenario refleja estacionalidad y contratos
 
 🚀 VERSIÓN 6.2.2 - FIX CRÍTICO: NECESIDADES MÍNIMAS DINÁMICAS (Noviembre 11, 2025):
 ===================================================================================
@@ -3166,7 +3175,10 @@ def generar_proyecciones_multi_escenario(meses, revenue_base, financial_data, se
     return resultados
 
 def generar_balance_multi_escenario(meses, efectivo_inicial, proyecciones):
-    """✅ Balance multi-escenario corregido"""
+    """
+    ✅ Balance multi-escenario corregido
+    ✅ v6.2.3: Ahora incluye nombre_mes con año para etiquetas correctas
+    """
     
     balances = {}
     
@@ -3181,6 +3193,7 @@ def generar_balance_multi_escenario(meses, efectivo_inicial, proyecciones):
             
             balance.append({
                 'mes': int(row['mes']),
+                'nombre_mes': row.get('nombre_mes', f"Mes {int(row['mes'])}"),  # ✅ v6.2.3: Incluir nombre con año
                 'efectivo_inicial': efectivo_acumulado - flujo_neto,
                 'ingresos': row['revenue'],
                 'egresos_totales': row['egresos_totales'],
@@ -5618,7 +5631,7 @@ with tab6:
 
         for escenario, df_balance in balances.items():
             fig.add_trace(go.Scatter(
-                x=[f"Mes {m}" for m in df_balance['mes']],
+                x=df_balance['nombre_mes'],  # ✅ v6.2.3: Usar nombre_mes con año (ej: "Oct 2025")
                 y=df_balance['efectivo_final'],
                 mode='lines+markers',
                 name=escenario,
@@ -5636,11 +5649,11 @@ with tab6:
         fig.update_layout(
             height=500,
             hovermode='x unified',
-            xaxis_title='Período',
+            xaxis_title='Período (Meses con Año)',  # ✅ v6.2.3: Actualizado para reflejar formato
             yaxis_title='Efectivo Disponible (USD)',
             yaxis=dict(tickformat='$,.0f'),
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
-            title='Evolución del Efectivo por Escenario (con Burn Rate REAL)'
+            title='Evolución del Efectivo por Escenario (con Burn Rate REAL + Estacionalidad)'  # ✅ v6.2.3: Mencionar estacionalidad
         )
 
         st.plotly_chart(fig, use_container_width=True, key="chart_reportes_balance_12m")
