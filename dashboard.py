@@ -5598,6 +5598,25 @@ with tab6:
     with tabs[2]:
         st.markdown("### 💰 Balance Proyectado Multi-Escenario")
         st.caption("✅ Balance acumulado correctamente con burn rate REAL")
+        
+        # 🔍 v6.2.3: DEBUG - Verificar que datos lleguen correctamente
+        with st.expander("🔍 DEBUG: Verificar Datos de Entrada", expanded=False):
+            st.write("**Seasonal Factors:**")
+            if data.get('seasonal_factors'):
+                st.json(data['seasonal_factors'])
+            else:
+                st.error("⚠️ seasonal_factors está vacío o None")
+            
+            st.write("**Contratos Manuales:**")
+            if st.session_state.get('contratos_manuales'):
+                st.write(f"Total contratos: {len(st.session_state.contratos_manuales)}")
+                for i, c in enumerate(st.session_state.contratos_manuales):
+                    st.write(f"Contrato {i+1}: Estado={c.get('estado')}, Tarifa=${c.get('tarifa_mensual_total', 0):,.0f}")
+            else:
+                st.error("⚠️ No hay contratos manuales")
+            
+            st.write("**Último mes histórico:**")
+            st.write(data['historical'].get('ultimo_mes', 'No definido'))
 
         meses_balance = st.slider("Meses de proyección:", 1, 12, 6, key="balance_slider")
 
@@ -5618,8 +5637,34 @@ with tab6:
                 seasonal_factors=data['seasonal_factors'],  # ✅ Estacionalidad aplicada
                 ultimo_mes_historico=data['historical'].get('ultimo_mes')  # 🆕 v6.0.6
             )
+            
+            # 🔍 v6.2.3: DEBUG en CONSOLA
+            print(f"\n{'='*60}")
+            print(f"DEBUG Balance Proyectado - Escenario: {escenario}")
+            print(f"{'='*60}")
+            print(f"Seasonal factors presentes: {data['seasonal_factors'] is not None}")
+            if data['seasonal_factors']:
+                print(f"Primer factor: {list(data['seasonal_factors'].items())[0]}")
+            print(f"Último mes histórico: {data['historical'].get('ultimo_mes')}")
+            print(f"Meses balance: {meses_balance}")
+            df_debug = proyecciones_bal[escenario].head(3)
+            print(f"\nPrimeros 3 meses de {escenario}:")
+            print(df_debug[['mes', 'nombre_mes', 'revenue', 'egresos_totales', 'flujo_neto']].to_string())
+            print(f"Revenue promedio (3m): ${df_debug['revenue'].mean():,.0f}")
+            print(f"{'='*60}\n")
 
         balances = generar_balance_multi_escenario(meses_balance, efectivo_actual, proyecciones_bal)
+        
+        # 🔍 v6.2.3: DEBUG - Mostrar primeros 3 meses de proyecciones por escenario
+        with st.expander("🔍 DEBUG: Proyecciones por Escenario (primeros 3 meses)", expanded=False):
+            for escenario in ['Conservador', 'Moderado', 'Optimista']:
+                if escenario in proyecciones_bal:
+                    df = proyecciones_bal[escenario].head(3)
+                    st.write(f"**{escenario}:**")
+                    st.dataframe(df[['mes', 'nombre_mes', 'revenue', 'egresos_totales', 'flujo_neto']])
+                    st.write(f"Revenue promedio (3m): ${df['revenue'].mean():,.0f}")
+                    st.write(f"Flujo neto promedio (3m): ${df['flujo_neto'].mean():,.0f}")
+                    st.write("---")
 
         fig = go.Figure()
 
