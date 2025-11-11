@@ -2376,6 +2376,13 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
     # Calcular revenue adicional de contratos, cotizaciones y equipos disponibles
     revenue_adicional = calcular_revenue_adicional_escenarios()
     
+    # 🆕 v6.0.8: Debug logging para verificar que contratos se sumen correctamente
+    if revenue_adicional['revenue_contratos'] > 0 or revenue_adicional['revenue_cotizaciones_50pct'] > 0:
+        print(f"\n🔍 DEBUG v6.0.8 - Revenue Adicional para escenario '{escenario}':")
+        print(f"   - Contratos activos: ${revenue_adicional['revenue_contratos']:,.0f}/mes")
+        print(f"   - Cotizaciones (50%): ${revenue_adicional['revenue_cotizaciones_50pct']:,.0f}/mes")
+        print(f"   - Equipos disponibles (50%): ${revenue_adicional['revenue_equipos_disponibles_50pct']:,.0f}/mes")
+    
     # Configuración de revenue base según escenario
     if escenario == 'Conservador':
         # Solo equipos operando
@@ -2385,12 +2392,16 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         revenue_base_escenario = (revenue_base + 
                                   revenue_adicional['revenue_contratos'] + 
                                   revenue_adicional['revenue_cotizaciones_50pct'])
+        # 🆕 v6.0.8: Debug para verificar suma
+        print(f"   ✅ Revenue base Moderado: ${revenue_base:,.0f} + ${revenue_adicional['revenue_contratos']:,.0f} + ${revenue_adicional['revenue_cotizaciones_50pct']:,.0f} = ${revenue_base_escenario:,.0f}/mes")
     else:  # Optimista
         # Moderado + 50% equipos disponibles
         revenue_base_escenario = (revenue_base + 
                                   revenue_adicional['revenue_contratos'] + 
                                   revenue_adicional['revenue_cotizaciones_50pct'] +
                                   revenue_adicional['revenue_equipos_disponibles_50pct'])
+        # 🆕 v6.0.8: Debug para verificar suma
+        print(f"   ✅ Revenue base Optimista: ${revenue_base:,.0f} + adicionales = ${revenue_base_escenario:,.0f}/mes")
     
     # Tasas de crecimiento mensual
     tasas_crecimiento = {
@@ -3521,7 +3532,7 @@ with tab2:
             nueva_tarifa = st.number_input(
                 "Tarifa Unitaria Mensual (USD)",
                 min_value=0.0,
-                value=float(tarifa_sugerida_mensual) if tarifa_sugerida_mensual > 0 else 3000.0,
+                value=float(tarifa_sugerida_mensual) if tarifa_sugerida_mensual > 0 else 0.0,  # 🔧 v6.0.8: Cambio de 3000.0 a 0.0
                 step=100.0,
                 key="nueva_tarifa_quote",
                 help="Modifica la tarifa según tu negociación con el cliente"
@@ -3803,7 +3814,7 @@ with tab2:
             tarifa_equipo = st.number_input(
                 "Tarifa Unitaria Mensual (USD)",
                 min_value=0.0,
-                value=float(tarifa_sugerida_mensual) if tarifa_sugerida_mensual > 0 else 3000.0,
+                value=float(tarifa_sugerida_mensual) if tarifa_sugerida_mensual > 0 else 0.0,  # 🔧 v6.0.8: Cambio de 3000.0 a 0.0
                 step=100.0,
                 key="tarifa_contrato",
                 help="Modifica la tarifa según tu negociación con el cliente"
@@ -4550,14 +4561,20 @@ with tab5:
             'Optimista': '#10B981'
         }
         
-        # 🆕 v6.0.7: Debug - Mostrar qué meses se están proyectando
-        if len(proyecciones['Conservador']) > 0:
-            primer_mes_proy = proyecciones['Conservador']['nombre_mes'].iloc[0]
-            ultimo_mes_proy = proyecciones['Conservador']['nombre_mes'].iloc[-1]
-            st.info(f"📅 **Proyectando desde {primer_mes_proy} hasta {ultimo_mes_proy}** ({meses_proyeccion} meses)")
+        # 🆕 v6.0.8: Debug - Mostrar qué meses se están proyectando (con protección contra error)
+        try:
+            if 'Conservador' in proyecciones and len(proyecciones['Conservador']) > 0:
+                primer_mes_proy = proyecciones['Conservador']['nombre_mes'].iloc[0]
+                ultimo_mes_proy = proyecciones['Conservador']['nombre_mes'].iloc[-1]
+                st.info(f"📅 **Proyectando desde {primer_mes_proy} hasta {ultimo_mes_proy}** ({meses_proyeccion} meses)")
+        except (KeyError, IndexError, AttributeError) as e:
+            # Silenciar error si proyecciones está vacío o mal formado
+            pass
         
         # 🆕 v6.0.5: AGREGAR HISTÓRICO al gráfico
         ultimo_revenue_historico = None  # Para conectar con proyecciones
+        ultimo_mes_historico_label = None
+        
         if data['historical']['data'] is not None and len(data['historical']['data']) > 0:
             df_hist = data['historical']['data']
             # Limitar a últimos 12 meses para no saturar el gráfico
@@ -4566,8 +4583,9 @@ with tab5:
             # Crear etiquetas de mes históricas
             historico_x = [f"H{i+1}" for i in range(len(df_hist_recent))]
             
-            # Guardar último valor para referencia (pero no lo vamos a repetir)
+            # Guardar último valor y label para conectar con proyecciones
             ultimo_revenue_historico = df_hist_recent['revenue'].iloc[-1]
+            ultimo_mes_historico_label = historico_x[-1]  # H12
             
             fig_revenue.add_trace(go.Scatter(
                 x=historico_x,
@@ -4582,25 +4600,44 @@ with tab5:
                 showlegend=True
             ))
 
-        # 🆕 v6.0.7: Agregar proyecciones SIN repetir H12
-        # Las proyecciones se conectan visualmente con el histórico pero no repiten el último punto
+        # 🆕 v6.0.8: Agregar proyecciones CON CONEXIÓN VISUAL a H12
         for escenario, df_proj in proyecciones.items():
             # Usar nombres de mes reales (Oct, Nov, Dic...)
             proyeccion_x = df_proj['nombre_mes'].tolist()
             proyeccion_y = df_proj['revenue'].tolist()
             
-            fig_revenue.add_trace(go.Scatter(
-                x=proyeccion_x,
-                y=proyeccion_y,
-                mode='lines+markers',
-                name=escenario,
-                line=dict(color=colores[escenario], width=4),
-                marker=dict(size=10, symbol='circle'),
-                hovertemplate='<b>%{fullData.name}</b><br>' +
-                             'Mes: %{x}<br>' +
-                             'Revenue: $%{y:,.0f}<br>' +
-                             '<extra></extra>'
-            ))
+            # 🆕 v6.0.8: Si hay histórico, agregar línea de conexión
+            if ultimo_revenue_historico is not None and ultimo_mes_historico_label is not None:
+                # Agregar línea de conexión invisible desde H12 hasta primer mes proyectado
+                x_con_conexion = [ultimo_mes_historico_label] + proyeccion_x
+                y_con_conexion = [ultimo_revenue_historico] + proyeccion_y
+                
+                fig_revenue.add_trace(go.Scatter(
+                    x=x_con_conexion,
+                    y=y_con_conexion,
+                    mode='lines+markers',
+                    name=escenario,
+                    line=dict(color=colores[escenario], width=4),
+                    marker=dict(size=10, symbol='circle'),
+                    hovertemplate='<b>%{fullData.name}</b><br>' +
+                                 'Mes: %{x}<br>' +
+                                 'Revenue: $%{y:,.0f}<br>' +
+                                 '<extra></extra>'
+                ))
+            else:
+                # Sin histórico, solo proyecciones
+                fig_revenue.add_trace(go.Scatter(
+                    x=proyeccion_x,
+                    y=proyeccion_y,
+                    mode='lines+markers',
+                    name=escenario,
+                    line=dict(color=colores[escenario], width=4),
+                    marker=dict(size=10, symbol='circle'),
+                    hovertemplate='<b>%{fullData.name}</b><br>' +
+                                 'Mes: %{x}<br>' +
+                                 'Revenue: $%{y:,.0f}<br>' +
+                                 '<extra></extra>'
+                ))
 
         fig_revenue.update_layout(
             height=500,
