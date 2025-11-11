@@ -1,7 +1,47 @@
 """
-SPT MASTER FORECAST - Dashboard Streamlit v6.0.5
+SPT MASTER FORECAST - Dashboard Streamlit v6.2.2
 =================================================
 Sistema de pronóstico y análisis financiero para SPT Colombia
+
+🚀 VERSIÓN 6.2.2 - FIX CRÍTICO: NECESIDADES MÍNIMAS DINÁMICAS (Noviembre 11, 2025):
+===================================================================================
+
+🔧 CORRECCIONES CRÍTICAS (v6.2.2):
+===================================
+
+  🐛 PROBLEMAS CORREGIDOS:
+  
+     1. **Necesidades Mínimas Fijas:**
+        - ANTES: Se calculaban una vez con promedio de costos de contratos
+        - AHORA: Se calculan dinámicamente mes a mes según vigencia real
+        - IMPACTO: Necesidades mínimas cambian cuando hay/no hay contratos vigentes
+     
+     2. **Etiquetas sin Año en Gráficos:**
+        - ANTES: Solo mostraba "Ene", "Feb" (sin año) → confusión al cruzar 2025-2026
+        - AHORA: Muestra "Ene 2026", "Feb 2026" → claridad total sobre el período
+        - IMPACTO: La brecha ahora es visible en los meses correctos (Nov 2025 - Abr 2026)
+  
+  ✅ SOLUCIONES IMPLEMENTADAS:
+  
+     A) FUNCIÓN NUEVA: calcular_necesidades_minimas_dinamicas()
+        - Calcula necesidades mes a mes considerando vigencia de contratos
+        - Retorna un diccionario {mes: necesidades_minimas}
+        - Usado por calcular_excedentes_invertibles()
+     
+     B) ETIQUETAS CON AÑO:
+        - generar_proyecciones_por_escenario() ahora incluye año en nombre_mes
+        - Formato: "Oct 2025", "Nov 2025", "Ene 2026"
+        - Visible en todos los gráficos de proyecciones
+     
+     C) DEBUG MEJORADO:
+        - Tabla de vigencia ahora muestra año explícitamente
+        - Necesidades mínimas se muestran mes a mes en tabla de excedentes
+  
+  🎯 RESULTADO ESPERADO:
+     - ✅ Gráfico muestra brecha SOLO en meses con contratos vigentes (Nov 2025 - Abr 2026)
+     - ✅ Necesidades mínimas VARÍAN según mes (mayores con contratos, menores sin)
+     - ✅ Etiquetas claras distinguen 2025 vs 2026
+     - ✅ Debug muestra exactamente qué pasa cada mes
 
 🚀 VERSIÓN 6.0.5 - DEBUG Y HISTÓRICO EN PROYECCIONES (Noviembre 6, 2025):
 ===========================================================================
@@ -2201,28 +2241,94 @@ def calcular_necesidades_excedentes_mejorado(efectivo_actual, flujos_proyectados
 # FUNCIONES DE GESTIÓN DE EXCEDENTES E INVERSIONES (v4.8.0)
 # =============================================================================
 
-def calcular_excedentes_invertibles(proyecciones_df, efectivo_inicial, burn_rate, meses_colchon, dias_liquidacion):
+def calcular_necesidades_minimas_dinamicas(proyecciones_df, gastos_fijos, tasa_costos_variables, meses_colchon):
     """
-    🆕 v4.8.0: Calcula excedentes invertibles mes a mes considerando necesidades mínimas
+    🆕 v6.2.2: Calcula necesidades mínimas MES A MES considerando costos específicos de contratos
+    
+    Esta función resuelve el problema de que las necesidades mínimas eran estáticas,
+    cuando en realidad varían según si hay contratos vigentes o no en cada mes.
     
     Args:
-        proyecciones_df: DataFrame con proyecciones mensuales (debe tener 'revenue' y 'egresos_totales')
+        proyecciones_df: DataFrame con proyecciones (debe tener 'mes', 'mes_numero', 'ano', 'revenue', 'costos_contratos')
+        gastos_fijos: Gastos fijos mensuales
+        tasa_costos_variables: Tasa de costos variables (ej: 0.0962)
+        meses_colchon: Número de meses de burn rate para mantener como colchón
+    
+    Returns:
+        dict: {mes: necesidades_minimas} donde mes es 1, 2, 3...
+    
+    LÓGICA:
+    Para cada mes proyectado:
+    1. Calcular costos variables = revenue × tasa
+    2. Obtener costos específicos de contratos para ese mes
+    3. Burn rate = gastos_fijos + costos_variables + costos_contratos
+    4. Necesidades mínimas = burn_rate × meses_colchon
+    
+    EJEMPLO:
+    - Mes 1 (Nov 2025) con contrato de $10k costos:
+      Burn rate = $50k + $30k + $10k = $90k
+      Necesidades (2m) = $180k
+    
+    - Mes 7 (May 2026) sin contratos:
+      Burn rate = $50k + $30k + $0 = $80k
+      Necesidades (2m) = $160k
+    """
+    necesidades_por_mes = {}
+    
+    for idx, row in proyecciones_df.iterrows():
+        mes_num = row['mes']
+        revenue_mes = row['revenue']
+        costos_contratos_mes = row.get('costos_contratos', 0)
+        
+        # Calcular burn rate ESPECÍFICO de este mes
+        costos_variables = revenue_mes * tasa_costos_variables
+        burn_rate_mes = gastos_fijos + costos_variables + costos_contratos_mes
+        
+        # Calcular necesidades mínimas para este mes
+        necesidades_minimas_mes = burn_rate_mes * meses_colchon
+        
+        necesidades_por_mes[mes_num] = necesidades_minimas_mes
+    
+    return necesidades_por_mes
+
+def calcular_excedentes_invertibles(proyecciones_df, efectivo_inicial, financial_data, meses_colchon, dias_liquidacion):
+    """
+    🆕 v4.8.0: Calcula excedentes invertibles mes a mes considerando necesidades mínimas
+    ✅ v6.2.2: CORREGIDO - Usa necesidades mínimas DINÁMICAS que varían mes a mes
+    
+    Args:
+        proyecciones_df: DataFrame con proyecciones mensuales (debe tener 'revenue', 'egresos_totales', 'costos_contratos')
         efectivo_inicial: Efectivo disponible al inicio
-        burn_rate: Burn rate mensual promedio
+        financial_data: Dict con 'gastos_fijos' y 'tasa_costos_variables'
         meses_colchon: Número de meses de burn rate para mantener como colchón
         dias_liquidacion: Días de anticipación para liquidar inversiones
     
     Returns:
         DataFrame con análisis de excedentes invertibles mes a mes
     
-    LÓGICA:
-    1. Por cada mes, calcular el balance acumulado
-    2. Restar las necesidades mínimas (burn_rate × meses_colchon)
-    3. El excedente es lo que se puede invertir
-    4. Marcar cuándo liquidar cada inversión (basado en días_liquidacion)
+    LÓGICA v6.2.2 (CORREGIDA):
+    1. Calcular necesidades mínimas DINÁMICAS por mes (considerando vigencia de contratos)
+    2. Por cada mes, calcular el balance acumulado
+    3. Restar las necesidades mínimas ESPECÍFICAS de ese mes
+    4. El excedente es lo que se puede invertir
+    5. Marcar cuándo liquidar cada inversión (basado en días_liquidacion)
+    
+    DIFERENCIA vs v6.2.1:
+    - ANTES: necesidades_minimas = burn_rate × meses_colchon (FIJO para todos los meses)
+    - AHORA: necesidades_minimas_mes = (gastos + costos_variables + costos_contratos) × meses_colchon (VARIABLE)
     """
     
-    necesidades_minimas = burn_rate * meses_colchon
+    # 🆕 v6.2.2: Calcular necesidades mínimas DINÁMICAS mes a mes
+    gastos_fijos = financial_data['gastos_fijos']
+    tasa_costos_variables = financial_data['tasa_costos_variables']
+    
+    # Calcular necesidades dinámicas
+    necesidades_dinamicas = calcular_necesidades_minimas_dinamicas(
+        proyecciones_df,
+        gastos_fijos,
+        tasa_costos_variables,
+        meses_colchon
+    )
     
     analisis = []
     balance_acumulado = efectivo_inicial
@@ -2234,8 +2340,11 @@ def calcular_excedentes_invertibles(proyecciones_df, efectivo_inicial, burn_rate
         # Actualizar balance acumulado
         balance_acumulado += flujo_neto
         
+        # 🆕 v6.2.2: Usar necesidades mínimas ESPECÍFICAS de este mes (no fijas)
+        necesidades_minimas_mes = necesidades_dinamicas[mes_num]
+        
         # Calcular excedente invertible
-        excedente = balance_acumulado - necesidades_minimas
+        excedente = balance_acumulado - necesidades_minimas_mes
         
         # Determinar si se puede invertir
         puede_invertir = excedente > 0
@@ -2247,7 +2356,7 @@ def calcular_excedentes_invertibles(proyecciones_df, efectivo_inicial, burn_rate
         analisis.append({
             'mes': mes_num,
             'balance_disponible': balance_acumulado,
-            'necesidades_minimas': necesidades_minimas,
+            'necesidades_minimas': necesidades_minimas_mes,  # 🆕 v6.2.2: Ahora varía por mes
             'excedente_invertible': max(0, excedente),
             'puede_invertir': puede_invertir,
             'liquidar_antes_mes': mes_liquidacion if puede_invertir else None
@@ -2597,6 +2706,9 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         nombre_mes = meses_nombres[mes_proyectado - 1]
         nombre_mes_abrev = meses_abrev[mes_proyectado - 1]
         
+        # 🆕 v6.2.2: Incluir año en la etiqueta para distinguir 2025 vs 2026
+        nombre_mes_con_ano = f"{nombre_mes_abrev} {ano_proyectado}"
+        
         # 🆕 v6.2.0: Calcular revenue adicional para ESTE MES específico
         revenue_adicional_mes = calcular_revenue_adicional_por_mes(mes_proyectado, ano_proyectado)
         
@@ -2639,10 +2751,13 @@ def generar_proyecciones_por_escenario(revenue_base, financial_data, meses, esce
         
         proyecciones.append({
             'mes': i + 1,
-            'nombre_mes': nombre_mes_abrev,  # 🆕 v6.0.6: Nombre del mes proyectado
+            'mes_numero': mes_proyectado,  # 🆕 v6.2.2: Mes del año (1-12) para cálculos
+            'ano': ano_proyectado,  # 🆕 v6.2.2: Año para cálculos
+            'nombre_mes': nombre_mes_con_ano,  # 🆕 v6.2.2: Nombre con año para gráficos
             'revenue': revenue_mes,
             'egresos_totales': egresos_totales,
-            'flujo_neto': flujo_neto
+            'flujo_neto': flujo_neto,
+            'costos_contratos': costos_especificos_contratos  # 🆕 v6.2.2: Para debug
         })
     
     return pd.DataFrame(proyecciones)
@@ -4391,10 +4506,11 @@ with tab3:
     )
 
     # Calcular excedentes invertibles (inversiones VIRTUALES - no afectan balance)
+    # 🆕 v6.2.2: Ahora pasa financial_data para calcular necesidades mínimas dinámicas
     df_excedentes = calcular_excedentes_invertibles(
         proyecciones_3m, 
         efectivo_actual, 
-        burn_rate,
+        data['financial'],  # 🆕 v6.2.2: Pasar datos financieros completos
         st.session_state.meses_colchon,
         st.session_state.dias_liquidacion
     )
@@ -4949,7 +5065,7 @@ with tab5:
         fig_revenue.update_layout(
             height=500,
             hovermode='x unified',
-            xaxis_title='Período (H1-H12 Histórico | Oct-Mar Proyección)',
+            xaxis_title='Período (H1-H12 Histórico | Oct 2025-Mar 2026 Proyección)',  # 🆕 v6.2.2: Refleja año en etiquetas
             yaxis_title='Revenue (USD)',
             yaxis=dict(tickformat='$,.0f'),
             legend=dict(orientation="h", yanchor="bottom", y=1.02)
