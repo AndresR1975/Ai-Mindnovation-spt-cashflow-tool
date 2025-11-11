@@ -5483,9 +5483,9 @@ with tab5:
         st.markdown("### 💰 Análisis Detallado de Flujo de Caja")
         st.caption("Visualización mensual del flujo de efectivo y proyección acumulada")
         
+        # Preparar datos para los nuevos gráficos
+        # Necesitamos reformatear proyecciones para que coincida con el formato esperado
         try:
-            # Preparar datos para los nuevos gráficos
-            # Necesitamos reformatear proyecciones para que coincida con el formato esperado
             datos_graficos = []
             efectivo_inicial = data['financial'].get('efectivo_actual', 0)
             
@@ -5496,8 +5496,8 @@ with tab5:
                 for idx, row in df_esc.iterrows():
                     efectivo_acum += row['flujo_neto']
                     
-                    # ✅ v6.2.4: Protección contra KeyError - usar .get() con fallback
-                    nombre_mes = row.get('nombre_mes', f"Mes {row.get('mes', idx+1)}")
+                    # ✅ v6.2.4 FIX: Protección contra KeyError - usar .get() con fallback
+                    nombre_mes = row.get('nombre_mes', f"Mes {int(row.get('mes', idx+1))}")
                     
                     datos_graficos.append({
                         'Periodo': nombre_mes,
@@ -5507,71 +5507,80 @@ with tab5:
                     })
             
             df_para_graficos = pd.DataFrame(datos_graficos)
-            
-            # 🆕 v6.2.4: Definir contratos importantes a marcar (opcional)
-            # Puedes personalizar esta lista con los contratos reales del pipeline
-            contratos_importantes = None  # Desactivado por defecto
-            
-            # Si quieres activar el marcado de contratos, descomenta y personaliza:
-            # contratos_importantes = [
-            #     {
-            #         'fecha': 'Ene 2026',  # Debe coincidir con formato de nombre_mes
-            #         'nombre': 'Cerrejón Q1',
-            #         'valor': 380_000_000,
-            #         'tipo': 'firma'
-            #     },
-            #     {
-            #         'fecha': 'Abr 2026',
-            #         'nombre': 'MinEnergía',
-            #         'valor': 450_000_000,
-            #         'tipo': 'firma'
-            #     }
-            # ]
-            
-            # Crear los gráficos
-            fig_flujo_mensual, fig_efectivo_acum = crear_graficos_efectivo_completos(
-                df_para_graficos,
-                eventos_contratos=contratos_importantes
-            )
-            
-            # Mostrar PRIMERO el flujo mensual (más importante para ver estacionalidad)
-            st.markdown("#### 💵 Flujo de Caja Mensual")
-            st.plotly_chart(fig_flujo_mensual, use_container_width=True, key="chart_flujo_mensual_barras")
-            
-            col1, col2 = st.columns([2, 1])
-            with col1:
+        except Exception as e:
+            st.warning("⚠️ Error al preparar datos para gráficos. Carga datos reales primero.")
+            print(f"🐛 Error preparando datos: {e}")
+            # Crear DataFrame vacío para evitar errores posteriores
+            df_para_graficos = pd.DataFrame(columns=['Periodo', 'Escenario', 'flujo_neto', 'efectivo_acumulado'])
+        
+        # 🆕 v6.2.4: Definir contratos importantes a marcar (opcional)
+        # Puedes personalizar esta lista con los contratos reales del pipeline
+        contratos_importantes = None  # Desactivado por defecto
+        
+        # Si quieres activar el marcado de contratos, descomenta y personaliza:
+        # contratos_importantes = [
+        #     {
+        #         'fecha': 'Ene 2026',  # Debe coincidir con formato de nombre_mes
+        #         'nombre': 'Cerrejón Q1',
+        #         'valor': 380_000_000,
+        #         'tipo': 'firma'
+        #     },
+        #     {
+        #         'fecha': 'Abr 2026',
+        #         'nombre': 'MinEnergía',
+        #         'valor': 450_000_000,
+        #         'tipo': 'firma'
+        #     }
+        # ]
+        
+        # Crear y mostrar los gráficos (con protección de errores)
+        try:
+            # Solo intentar crear gráficos si hay datos
+            if len(df_para_graficos) > 0:
+                # Crear los gráficos
+                fig_flujo_mensual, fig_efectivo_acum = crear_graficos_efectivo_completos(
+                    df_para_graficos,
+                    eventos_contratos=contratos_importantes
+                )
+                
+                # Mostrar PRIMERO el flujo mensual (más importante para ver estacionalidad)
+                st.markdown("#### 💵 Flujo de Caja Mensual")
+                st.plotly_chart(fig_flujo_mensual, use_container_width=True, key="chart_flujo_mensual_barras")
+                
+                col1, col2 = st.columns([2, 1])
+                with col1:
+                    st.markdown("""
+                    **¿Qué muestra este gráfico?**
+                    - El **flujo neto mensual** (ingresos - egresos) de cada período
+                    - Permite identificar **meses críticos** con flujo negativo
+                    - Muestra claramente el **impacto de contratos** específicos
+                    - Las barras agrupadas facilitan **comparar escenarios** en el mismo mes
+                    """)
+                with col2:
+                    if contratos_importantes:
+                        st.markdown("""
+                        **Leyenda de Eventos:**
+                        - 🟣 Firma de contrato
+                        - 🟠 Renovación
+                        - ⚫ Finalización
+                        """)
+                
+                # Mostrar SEGUNDO el acumulado (visión de largo plazo)
+                st.markdown("#### 📈 Proyección de Efectivo Acumulado")
+                st.plotly_chart(fig_efectivo_acum, use_container_width=True, key="chart_efectivo_acumulado_lineas")
+                
                 st.markdown("""
                 **¿Qué muestra este gráfico?**
-                - El **flujo neto mensual** (ingresos - egresos) de cada período
-                - Permite identificar **meses críticos** con flujo negativo
-                - Muestra claramente el **impacto de contratos** específicos
-                - Las barras agrupadas facilitan **comparar escenarios** en el mismo mes
+                - La **evolución del balance total** mes a mes
+                - Permite ver la **trayectoria financiera** de la empresa
+                - Identifica cuándo se alcanza el **punto de equilibrio**
+                - Las líneas muestran la **tendencia acumulativa** del efectivo
                 """)
-            with col2:
-                if contratos_importantes:
-                    st.markdown("""
-                    **Leyenda de Eventos:**
-                    - 🟣 Firma de contrato
-                    - 🟠 Renovación
-                    - ⚫ Finalización
-                    """)
-            
-            # Mostrar SEGUNDO el acumulado (visión de largo plazo)
-            st.markdown("#### 📈 Proyección de Efectivo Acumulado")
-            st.plotly_chart(fig_efectivo_acum, use_container_width=True, key="chart_efectivo_acumulado_lineas")
-            
-            st.markdown("""
-            **¿Qué muestra este gráfico?**
-            - La **evolución del balance total** mes a mes
-            - Permite ver la **trayectoria financiera** de la empresa
-            - Identifica cuándo se alcanza el **punto de equilibrio**
-            - Las líneas muestran la **tendencia acumulativa** del efectivo
-            """)
-            
+            else:
+                st.info("ℹ️ Carga datos reales para ver los gráficos de flujo de caja detallado.")
         except Exception as e:
-            # ✅ v6.2.4: Manejo de errores para evitar que el dashboard se caiga
-            st.warning(f"⚠️ No se pudieron generar los gráficos de flujo de caja. Carga datos reales primero o verifica que las proyecciones estén completas.")
-            print(f"🐛 DEBUG v6.2.4 - Error en gráficos de flujo: {str(e)}")
+            st.warning("⚠️ No se pudieron generar los gráficos de flujo de caja. Los demás análisis están disponibles.")
+            print(f"🐛 Error creando gráficos de flujo: {e}")
             import traceback
             traceback.print_exc()
         
