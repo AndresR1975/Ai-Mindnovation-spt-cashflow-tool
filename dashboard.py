@@ -3304,7 +3304,12 @@ def crear_graficos_efectivo_completos(
     # Agregar barras para cada escenario
     for escenario in escenarios:
         df_esc = df_proyeccion[df_proyeccion['Escenario'] == escenario].copy()
-        df_esc = df_esc.sort_values('Periodo')
+        
+        # ✅ v6.2.4 FIX: Ordenar cronológicamente por 'orden' si existe, sino por 'Periodo'
+        if 'orden' in df_esc.columns:
+            df_esc = df_esc.sort_values('orden')
+        else:
+            df_esc = df_esc.sort_values('Periodo')
         
         fig_flujo.add_trace(go.Bar(
             name=escenario,
@@ -3393,7 +3398,12 @@ def crear_graficos_efectivo_completos(
     # Agregar líneas para cada escenario
     for escenario in escenarios:
         df_esc = df_proyeccion[df_proyeccion['Escenario'] == escenario].copy()
-        df_esc = df_esc.sort_values('Periodo')
+        
+        # ✅ v6.2.4 FIX: Ordenar cronológicamente por 'orden' si existe, sino por 'Periodo'
+        if 'orden' in df_esc.columns:
+            df_esc = df_esc.sort_values('orden')
+        else:
+            df_esc = df_esc.sort_values('Periodo')
         
         fig_acumulado.add_trace(go.Scatter(
             name=escenario,
@@ -5499,7 +5509,11 @@ with tab5:
                     # ✅ v6.2.4 FIX: Protección contra KeyError - usar .get() con fallback
                     nombre_mes = row.get('nombre_mes', f"Mes {int(row.get('mes', idx+1))}")
                     
+                    # ✅ v6.2.4 FIX: Agregar orden numérico para ordenar cronológicamente
+                    orden = row.get('mes', idx+1)  # Usar el número de mes de la proyección
+                    
                     datos_graficos.append({
+                        'orden': orden,  # Campo para ordenar cronológicamente
                         'Periodo': nombre_mes,
                         'Escenario': escenario,
                         'flujo_neto': row['flujo_neto'],
@@ -6115,7 +6129,7 @@ with tab6:
             yaxis_title='Efectivo Disponible (USD)',
             yaxis=dict(tickformat='$,.0f'),
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
-            title='Evolución del Efectivo por Escenario (con Burn Rate REAL + Estacionalidad)'  # ✅ v6.2.3: Mencionar estacionalidad
+            title='Evolución del Efectivo Acumulado por Escenario (con Burn Rate REAL + Estacionalidad)'  # ✅ v6.2.4: Incluir "Acumulado"
         )
 
         st.plotly_chart(fig, use_container_width=True, key="chart_reportes_balance_12m")
