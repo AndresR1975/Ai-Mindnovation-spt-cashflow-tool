@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Form View para Financial KPI -->
+        <record id="view_financial_kpi_form" model="ir.ui.view">
+            <field name="name">financial.kpi.form</field>
+            <field name="model">financial.kpi</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" placeholder="Descripción del KPI"/>
+                            </h1>
+                        </div>
+
+                        <group>
+                            <group string="Información General">
+                                <field name="date"/>
+                                <field name="company_id"/>
+                            </group>
+
+                            <group string="KPIs Principales">
+                                <field name="cash_available"/>
+                                <field name="cash_variation"/>
+                                <field name="monthly_revenue"/>
+                                <field name="revenue_variation"/>
+                                <field name="burn_rate"/>
+                                <field name="burn_rate_variation"/>
+                                <field name="runway_months"/>
+                            </group>
+                        </group>
+
+                        <notebook>
+                            <page string="Notas">
+                                <field name="notes" nolabel="1"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Tree View para Financial KPI -->
+        <record id="view_financial_kpi_tree" model="ir.ui.view">
+            <field name="name">financial.kpi.tree</field>
+            <field name="model">financial.kpi</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="date"/>
+                    <field name="cash_available" sum="Suma"/>
+                    <field name="cash_variation"/>
+                    <field name="monthly_revenue" sum="Suma"/>
+                    <field name="revenue_variation"/>
+                    <field name="burn_rate" sum="Suma"/>
+                    <field name="burn_rate_variation"/>
+                    <field name="runway_months"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Search View -->
+        <record id="view_financial_kpi_search" model="ir.ui.view">
+            <field name="name">financial.kpi.search</field>
+            <field name="model">financial.kpi</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="name"/>
+                    <field name="date"/>
+                </search>
+            </field>
+        </record>
+
+        <!-- Action para Dashboard - Muestra último KPI -->
+        <record id="action_financial_kpi_dashboard" model="ir.actions.act_window">
+            <field name="name">Dashboard - KPIs</field>
+            <field name="res_model">financial.kpi</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context">{'search_default_latest': 1}</field>
+            <field name="domain">[]</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No hay KPIs registrados. Ve a Configuración para crear el primero.
+                </p>
+            </field>
+        </record>
+
+        <!-- Action para Configuración - Lista completa editable -->
+        <record id="action_financial_kpi_config" model="ir.actions.act_window">
+            <field name="name">Gestión de KPIs</field>
+            <field name="res_model">financial.kpi</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context">{'create': True, 'edit': True, 'delete': True}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No hay KPIs creados. Haz clic en "Crear" para agregar el primero.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>
