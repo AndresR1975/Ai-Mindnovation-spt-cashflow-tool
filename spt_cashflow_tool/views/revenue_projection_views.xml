@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- Tree View - Listado de Proyecciones -->
-        <record id="view_revenue_projection_tree" model="ir.ui.view">
-            <field name="name">revenue.projection.tree</field>
+        <!-- List View - Listado de Proyecciones -->
+        <record id="view_revenue_projection_list" model="ir.ui.view">
+            <field name="name">revenue.projection.list</field>
             <field name="model">revenue.projection</field>
             <field name="arch" type="xml">
-                <tree>
+                <list>
                     <field name="name"/>
                     <field name="projection_date"/>
                     <field name="months_to_project"/>
                     <field name="base_revenue" sum="Total"/>
                     <field name="base_expenses" sum="Total"/>
                     <field name="growth_rate"/>
-                </tree>
+                </list>
             </field>
         </record>
 
@@ -53,13 +53,13 @@
                             <!-- Líneas de Proyección -->
                             <page string="Proyecciones Mensuales">
                                 <field name="projection_line_ids" nolabel="1">
-                                    <tree editable="bottom">
+                                    <list editable="bottom">
                                         <field name="month_number"/>
                                         <field name="month_name"/>
                                         <field name="projected_revenue" sum="Total"/>
                                         <field name="projected_expenses" sum="Total"/>
                                         <field name="net_flow" sum="Total"/>
-                                    </tree>
+                                    </list>
                                 </field>
                             </page>
 
@@ -104,19 +104,19 @@
             </field>
         </record>
 
-        <!-- Tree View - Líneas de Proyección (Vista independiente) -->
-        <record id="view_revenue_projection_line_tree" model="ir.ui.view">
-            <field name="name">revenue.projection.line.tree</field>
+        <!-- List View - Líneas de Proyección (Vista independiente) -->
+        <record id="view_revenue_projection_line_list" model="ir.ui.view">
+            <field name="name">revenue.projection.line.list</field>
             <field name="model">revenue.projection.line</field>
             <field name="arch" type="xml">
-                <tree>
+                <list>
                     <field name="projection_id"/>
                     <field name="month_number"/>
                     <field name="month_name"/>
                     <field name="projected_revenue" sum="Total"/>
                     <field name="projected_expenses" sum="Total"/>
                     <field name="net_flow" sum="Total"/>
-                </tree>
+                </list>
             </field>
         </record>
 
@@ -124,7 +124,7 @@
         <record id="action_revenue_projection" model="ir.actions.act_window">
             <field name="name">Proyecciones de Cash Flow</field>
             <field name="res_model">revenue.projection</field>
-            <field name="view_mode">tree,form,search</field>
+            <field name="view_mode">list,form,search</field>
             <field name="context">{}</field>
             <field name="search_view_id" ref="view_revenue_projection_search"/>
             <field name="help" type="html">
@@ -138,7 +138,7 @@
         <record id="action_revenue_projection_graph" model="ir.actions.act_window">
             <field name="name">Gráfico de Proyecciones</field>
             <field name="res_model">revenue.projection.line</field>
-            <field name="view_mode">graph,tree</field>
+            <field name="view_mode">graph,list</field>
             <field name="context">{'graph_view_ref': 'spt_cashflow_tool.view_revenue_projection_graph'}</field>
             <field name="target">main</field>
         </record>

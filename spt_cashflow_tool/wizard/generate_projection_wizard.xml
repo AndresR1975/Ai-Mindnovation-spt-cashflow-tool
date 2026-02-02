@@ -34,12 +34,12 @@
                         </group>
 
                         <group>
-                            <group string="Base para Proyecciones" attrs="{'invisible': [('auto_calculate', '=', True)]}">
+                            <group string="Base para Proyecciones">
                                 <field name="base_revenue"/>
                                 <field name="base_expenses"/>
                             </group>
                             
-                            <group string="Valores Calculados" attrs="{'invisible': [('auto_calculate', '=', False)]}">
+                            <group string="Valores Calculados">
                                 <field name="base_revenue" readonly="1"/>
                                 <field name="base_expenses" readonly="1"/>
                                 <p class="oe_note">Valores calculados automáticamente desde los últimos 6 meses de datos históricos</p>

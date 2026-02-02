@@ -41,12 +41,12 @@
             </field>
         </record>
 
-        <!-- Tree View para Financial KPI -->
-        <record id="view_financial_kpi_tree" model="ir.ui.view">
-            <field name="name">financial.kpi.tree</field>
+        <!-- List View para Financial KPI -->
+        <record id="view_financial_kpi_list" model="ir.ui.view">
+            <field name="name">financial.kpi.list</field>
             <field name="model">financial.kpi</field>
             <field name="arch" type="xml">
-                <tree>
+                <list>
                     <field name="date"/>
                     <field name="cash_available" sum="Suma"/>
                     <field name="cash_variation"/>
@@ -55,7 +55,7 @@
                     <field name="burn_rate" sum="Suma"/>
                     <field name="burn_rate_variation"/>
                     <field name="runway_months"/>
-                </tree>
+                </list>
             </field>
         </record>
 
@@ -75,7 +75,7 @@
         <record id="action_financial_kpi_dashboard" model="ir.actions.act_window">
             <field name="name">Dashboard - KPIs</field>
             <field name="res_model">financial.kpi</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
             <field name="context">{'search_default_latest': 1}</field>
             <field name="domain">[]</field>
             <field name="help" type="html">
